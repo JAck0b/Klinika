@@ -1,0 +1,1 @@
+-- Tutaj są kody wszystkich triggerów.
