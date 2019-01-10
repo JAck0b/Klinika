@@ -159,9 +159,9 @@ values ('Lasery A'),('Lasery B'),('Lasery C'),('Lasery D'),('Pole magnetyczne A'
 insert into dostep_do_stanowiska (stanowisko, wymagane_uprawnienia)
 values ('Lasery', 'Lasery A'),  ('Magnetokomora', 'Pole magnetyczne A'),  ('Elektrokomora', 'Elektroterapia A'),  ('Ultradźwięki komora', 'Ultradźwięki'),  ('Salka gimnastyczna', 'Gimnastyka A'),  ('Salka gimnastyczna', 'Gimnastyka dziecko'),  ('Salka gimnastyczna', 'Gimnastyka dorośli'),  ('Salka gimnastyczna', 'Gimnastyka grupy'),  ('Aquavibron', 'Fizjoterapia A'),  ('Wirówka', 'Masaż mechaniczny'),  ('Kriokomora', 'Krioterapia A'),  ('Lampy', 'Fizjoterapia B'),  ('Akupunktura', 'Akupunktura A'),  ('Salka spa', 'Masaż relaksacyjny A'),  ('Łóżko do masażu', 'Kinesiotaping A'),  ('Łóżko do masażu', 'Drenaż A'),  ('Łóżko do masażu', 'Masaż klasyczny A'),  ('Łóżko do masażu', 'Masaż kobiet'),  ('Łóżko do masażu', 'Akupunktura A');
 
-DROP PROCEDURE IF EXISTS dodajstanowiska;
+DROP PROCEDURE IF EXISTS dodaj_stanowiska;
 DELIMITER //
-CREATE PROCEDURE dodajstanowiska()
+CREATE PROCEDURE dodaj_stanowiska()
 BEGIN
   DECLARE i INT DEFAULT 0; #iterator po ilosci
   WHILE i <10 DO
@@ -312,9 +312,9 @@ DELIMITER ;
 
 
 
-DROP PROCEDURE IF EXISTS dodajuser;
+DROP PROCEDURE IF EXISTS dodaj_uzytkownika;
 DELIMITER //
-CREATE PROCEDURE dodajuser(IN ilosc INT, IN iloscklientow INT) #ilosc pracownikow = ilosc - iloscklientow - 1 (bo prezez)
+CREATE PROCEDURE dodaj_uzytkownika(IN ilosc INT, IN iloscklientow INT) #ilosc pracownikow = ilosc - iloscklientow - 1 (bo prezez)
 BEGIN
   DECLARE i INT DEFAULT 0; #iterator po ilosci
   DECLARE j INT DEFAULT 0; #iterator po peselach w tym samym dniu
@@ -362,5 +362,5 @@ BEGIN
 END//
 DELIMITER ;
 
-CALL dodajstanowiska();
-CALL dodajuser(500,200);
+-- CALL dodajstanowiska();
+-- CALL dodajuser(500,200);
