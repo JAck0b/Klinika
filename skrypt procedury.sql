@@ -68,3 +68,47 @@ begin
   close iterator;
 end //
 delimiter ;
+
+#############################################################################################################
+# ta procedura liczy czy są wolne miejsca i czy nie będzie ten nowy zabieg przeszkadzać w przyszłości
+delimiter //
+create procedure czy_sa_wolne_miejsca_na_stanowisku_ciagle(in data date, in godzina time, in id_uslugi int,
+                                                           in id_stanowiska int, out wynik boolean)
+begin
+  declare dlugosc_trwania int;
+  declare iterator int default 0;
+  declare ilosc_powtorzen int default 0;
+  declare ilosc_w_jednym_czasie int default 0;
+  declare max_ilosc_w_danym_momencie int default 0;
+
+  set wynik = true;
+
+  select uslugi_rehabilitacyjne.czas_trwania
+  from uslugi_rehabilitacyjne
+  where uslugi_rehabilitacyjne.ID = id_uslugi into dlugosc_trwania;
+
+  select uslugi_rehabilitacyjne.max_ilosc_osob
+  from uslugi_rehabilitacyjne
+  where uslugi_rehabilitacyjne.ID = id_uslugi into max_ilosc_w_danym_momencie;
+
+  set ilosc_powtorzen = dlugosc_trwania / 15;
+
+  create temporary table zabiegi_pomoc
+  select *
+  from zabiegi
+  where zabiegi.stanowisko = id_stanowiska
+    and date(zabiegi.data_zabiegu) like data;
+
+  myloop: while iterator < ilosc_powtorzen do
+  select count(zabiegi_pomoc.ID)
+  from zabiegi_pomoc
+  where time(zabiegi_pomoc.data_zabiegu) like godzina into ilosc_w_jednym_czasie;
+  if (ilosc_w_jednym_czasie >= max_ilosc_w_danym_momencie) then # jeżeli jest równe to nie ma miejsca dla następnego
+    set wynik = false;
+    #     leave myloop;
+  end if ;
+  set iterator = iterator + 1;
+  set godzina = addtime(godzina, '15:00');
+  end while;
+end //
+delimiter ;
