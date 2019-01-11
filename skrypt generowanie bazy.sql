@@ -12,7 +12,8 @@ create table uzytkownicy
 create table uprawnienia
 (
   #ID    int         not null primary key auto_increment,
-  nazwa varchar(45) not null primary key
+  nazwa varchar(45) not null primary key,
+  grupa varcahr(45) not null
 );
 
 create table uslugi_rehabilitacyjne
