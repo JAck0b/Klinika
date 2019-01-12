@@ -357,10 +357,10 @@ BEGIN
   SET i = i + 1;
   SET j = j + 1;
   END WHILE;
-  SET rozmedaty = rozmedaty + FLOOR(RAND() * 200);
+  SET rozmedaty = rozmedaty + FLOOR(RAND() * 200 + 1);
   END WHILE;
 END//
 DELIMITER ;
 
-# CALL dodaj_stanowiska();
-# CALL dodaj_uzytkownika(500,200);
+CALL dodaj_stanowiska();
+CALL dodaj_uzytkownika(5000,200);
