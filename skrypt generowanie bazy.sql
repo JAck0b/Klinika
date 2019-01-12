@@ -13,7 +13,7 @@ create table uprawnienia
 (
   #ID    int         not null primary key auto_increment,
   nazwa varchar(45) not null primary key,
-  grupa varcahr(45) not null
+  grupa varchar(45) not null
 );
 
 create table uslugi_rehabilitacyjne
@@ -154,9 +154,8 @@ VALUES (0, 'Niedziela', '08:00:00', '16:00:00'),
        (5, 'Piatek', '08:00:00', '16:00:00'),
        (6, 'Sobota', '08:00:00', '16:00:00');
 
-insert into uprawnienia(nazwa)
-values ('Lasery A'),('Lasery B'),('Lasery C'),('Lasery D'),('Pole magnetyczne A'),('Pole magnetyczne B'),('Elektroterapia A'),('Elektroterapia C'),('Elektroterapia B'),('Ultradźwięki'),('Gimnastyka C'),('Gimnastyka B'),('Gimnastyka A'),('Gimnastyka D'),('Fizjoterapia A'),('Masaż mechaniczny'),('Krioterapia C'),('Krioterapia B'),('Krioterapia A'),('Fizjoterapia B'),('Gimnastyka dziecko'),('Gimnastyka dorośli'),('Gimnastyka grupy'),('Akupunktura A'),('Akupunktura C'),('Akupunktura B'),('Akupunktura D'),('Masaż relaksacyjny B'),('Masaż relaksacyjny C'),('Masaż relaksacyjny A'),('Kinesiotaping C'),('Kinesiotaping B'),('Kinesiotaping A'),('Masaż kobiet'),('Drenaż A'),('Drenaż B'),('Masaż klasyczny A'),('Masaż klasyczny C'),('Masaż klasyczny B');
-
+insert into uprawnienia(nazwa, grupa)
+values ('Lasery A', 'Lasery'), ('Lasery B', 'Lasery'), ('Lasery C', 'Lasery'), ('Lasery D', 'Lasery'), ('Pole magnetyczne A', 'Pole magnetyczne'), ('Pole magnetyczne B', 'Pole magnetyczne'), ('Elektroterapia A', 'Elektroterapia'), ('Elektroterapia C', 'Elektroterapia'), ('Elektroterapia B', 'Elektroterapia'), ('Ultradźwięki', 'Ultradźwięki'), ('Gimnastyka C', 'Gimnastyka'), ('Gimnastyka B', 'Gimnastyka'), ('Gimnastyka A', 'Gimnastyka'), ('Gimnastyka D', 'Gimnastyka'), ('Fizjoterapia A', 'Fizjoterapia'), ('Masaż mechaniczny', 'Masaż'), ('Krioterapia C', 'Krioterapia'), ('Krioterapia B', 'Krioterapia'), ('Krioterapia A', 'Krioterapia'), ('Fizjoterapia B', 'Fizjoterapia'), ('Gimnastyka dziecko', 'Gimnastyka'), ('Gimnastyka dorośli', 'Gimnastyka'), ('Gimnastyka grupy', 'Gimnastyka'), ('Akupunktura A', 'Akupunktura'), ('Akupunktura C', 'Akupunktura'), ('Akupunktura B', 'Akupunktura'), ('Akupunktura D', 'Akupunktura'), ('Masaż relaksacyjny B', 'Masaż'), ('Masaż relaksacyjny C', 'Masaż'), ('Masaż relaksacyjny A', 'Masaż'), ('Kinesiotaping C', 'Kinesiotaping'), ('Kinesiotaping B', 'Kinesiotaping'), ('Kinesiotaping A', 'Kinesiotaping'), ('Masaż kobiet', 'Masaż'), ('Drenaż A', 'Drenaż'), ('Drenaż B', 'Drenaż'), ('Masaż klasyczny A', 'Masaż'), ('Masaż klasyczny C', 'Masaż'), ('Masaż klasyczny B', 'Masaż');
 insert into dostep_do_stanowiska (stanowisko, wymagane_uprawnienia)
 values ('Lasery', 'Lasery A'),  ('Magnetokomora', 'Pole magnetyczne A'),  ('Elektrokomora', 'Elektroterapia A'),  ('Ultradźwięki komora', 'Ultradźwięki'),  ('Salka gimnastyczna', 'Gimnastyka A'),  ('Salka gimnastyczna', 'Gimnastyka dziecko'),  ('Salka gimnastyczna', 'Gimnastyka dorośli'),  ('Salka gimnastyczna', 'Gimnastyka grupy'),  ('Aquavibron', 'Fizjoterapia A'),  ('Wirówka', 'Masaż mechaniczny'),  ('Kriokomora', 'Krioterapia A'),  ('Lampy', 'Fizjoterapia B'),  ('Akupunktura', 'Akupunktura A'),  ('Salka spa', 'Masaż relaksacyjny A'),  ('Łóżko do masażu', 'Kinesiotaping A'),  ('Łóżko do masażu', 'Drenaż A'),  ('Łóżko do masażu', 'Masaż klasyczny A'),  ('Łóżko do masażu', 'Masaż kobiet'),  ('Łóżko do masażu', 'Akupunktura A');
 
@@ -363,5 +362,5 @@ BEGIN
 END//
 DELIMITER ;
 
--- CALL dodajstanowiska();
--- CALL dodajuser(500,200);
+# CALL dodaj_stanowiska();
+# CALL dodaj_uzytkownika(500,200);
