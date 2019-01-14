@@ -1,4 +1,5 @@
 -- Tutaj są kody wszystkich procedur
+
 elimiter //
 create procedure czy_jest_gdzie_wolne_miejsce(in kiedy datetime, in id_pracownika char(11), in id_uslugi int,
                                               out czy_mozna boolean, out gdzie_wolne int)
@@ -24,17 +25,15 @@ begin
   where pracownik like id_pracownika
     and data_zabiegu like kiedy;
 
-
-
   # znajdowanie uprawnień prowadzącego oraz jego grupy
   select uprawnienia.nazwa, uprawnienia.grupa
   from specjalizacje join uprawnienia on specjalizacje.uprawnienia = uprawnienia.nazwa
-  where specjalizacje.uzytkownik like id_pracownika into uprawnienia_zaplanowanego_prowadzacego, grupa_zaplanowanego_prowadzacego;
+  where specjalizacje.uzytkownik like id_pracownika limit 1 into uprawnienia_zaplanowanego_prowadzacego, grupa_zaplanowanego_prowadzacego;
 
   # znajdowanie minimalnych uprawnień, grupy uprawnień oraz czasu nowego zebiegu
   select uprawnienia.nazwa, uprawnienia.grupa, uslugi_rehabilitacyjne.czas_trwania
   from uslugi_rehabilitacyjne join uprawnienia on uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-  where uslugi_rehabilitacyjne.ID = id_uslugi into uprawnienia_nowego_zabiegu, grupa_nowego_zabiegu, czas_nowego_zabiegu;
+  where uslugi_rehabilitacyjne.ID = id_uslugi limit 1 into uprawnienia_nowego_zabiegu, grupa_nowego_zabiegu, czas_nowego_zabiegu;
 
   # sprawdzenie, czy ten prowadzący w ogóle może prowadzić ten zabieg
   if grupa_nowego_zabiegu like grupa_zaplanowanego_prowadzacego and
@@ -43,18 +42,17 @@ begin
     # znajdowanie ile osób jest teraz umówionych i jakie jest id stanowiska na którym będzie zabieg
     select count(ID), stanowisko
     from zabiegi_pomoc
-    group by stanowko into obecna_ilosc_osob, id_zaplanowanego_stanowiska;
+    group by stanowisko into obecna_ilosc_osob, id_zaplanowanego_stanowiska;
 
     # znajdowanie czasu zaplanowanego zabiegu
     select distinct uslugi_rehabilitacyjne.czas_trwania
     from uslugi_rehabilitacyjne
-           join zabiegi_pomoc on uslugi_rehabilitacyjne.ID = zabiegi_pomoc.usluga into czas_zaplanowanych_zabiegow;
+           join zabiegi_pomoc on uslugi_rehabilitacyjne.ID = zabiegi_pomoc.usluga limit 1 into czas_zaplanowanych_zabiegow;
 
     # znajdowanie jaka jest maksymalna liczba osób na danym stanowisku
-    select stanowisko.max_ilosc_osob
+    select stanowiska.max_ilosc_osob
     from stanowiska
     where ID = id_zaplanowanego_stanowiska into maksymalna_liczba_osob;
-
 
     if obecna_ilosc_osob >= 1 and obecna_ilosc_osob + 1 < maksymalna_liczba_osob and
        czas_nowego_zabiegu = czas_zaplanowanych_zabiegow then
@@ -66,22 +64,22 @@ begin
     else
       # trzeba znaleźć nowe puste stanowisko
 
-      select stanowiska.ID
-      from stanowiska
-             join zabiegi on stanowiska.ID = zabiegi.stanowisko
-             join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
-             join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-      where uprawnienia.nazwa like uprawnienia_nowego_zabiegu
-        and uprawnienia.grupa like grupa_nowego_zabiegu
-      having count(zabiegi.ID) = 0 limit 1 into gdzie_wolne;
+#       select stanowiska.ID
+#       from stanowiska
+#              join zabiegi on stanowiska.ID = zabiegi.stanowisko
+#              join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
+#              join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
+#       where uprawnienia.nazwa like uprawnienia_nowego_zabiegu
+#         and uprawnienia.grupa like grupa_nowego_zabiegu
+#       having count(zabiegi.ID) = 0 limit 1 into gdzie_wolne;
 
       select stanowiska.ID
       from stanowiska
              left join zabiegi on stanowiska.ID = zabiegi.stanowisko
              join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
              join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-      where uprawnienia.nazwa like uprawnienia_nowego_zabiegu
-        and uprawnienia.grupa like grupa_nowego_zabiegu
+      where uprawnienia.grupa like grupa_nowego_zabiegu
+        and zabiegi.data_zabiegu like kiedy
       group by stanowiska.ID
       having count(zabiegi.ID) = 0
       limit 1 into gdzie_wolne;
@@ -90,8 +88,6 @@ begin
         set czy_mozna = true;
       end if ;
 
-
-
     end if ;
 
   end if ;
@@ -99,20 +95,17 @@ begin
 end //
 delimiter ;
 
+
+# TODO można usunąć ilość i zostawić iterowanie po czasie
 delimiter //
 create procedure wolne_miejsca(in data date, in nazwa_uslugi varchar(100), in rodzaj_uslugi varchar(50))
 begin
   declare iterator int default 0;
-  declare warunek boolean default 0;
-  declare ilosc int default 4 * hour(timediff(select
-                                              godziny_otwarcia.godzina_rozpoczecia # obliczanie ile jest kwadransów w godzinach pracy
-                                              from godziny_otwarcia
-                                              where godzina_rozpoczecia.ID = dayofweek(data) limit 1, select
-                                              godziny_otwarcia.godzina_zakonczenia
-                                              from godziny_otwarcia
-                                              where godzina_rozpoczecia.ID = dayofweek(data) limit 1));
-  declare czas time;
-  declare czas_pomoc time;
+  declare warunek boolean default 0; # warunek czy jest dobra procedura
+  declare rozpoczecie time; # godzina rozpoczęcia pracy w tym dniu
+  declare zakonczenie time; # godzina zakończenia pracy w tym dniu
+  declare ilosc int; # ilość przejść pętli
+  declare czas_pomoc time; # iterator godzin
   declare koniec boolean default true;
   declare pracownik_pomoc char(11);
   declare id_uslugi int;
@@ -124,18 +117,30 @@ begin
                                       join uslugi_rehabilitacyjne ur on u.nazwa = ur.uprawnienia
                                where ur.nazwa like nazwa_uslugi
                                  and ur.rodzaj like rodzaj_uslugi
-                                 and uzytkownicy.rola like "Pracownik");
+                                 and uzytkownicy.rola like 'Pracownik');
   declare continue handler for not found set koniec = false;
+
+  select godzina_zakonczenia
+  from godziny_otwarcia
+  where ID = dayofweek(data)
+  limit 1 into zakonczenie;
+
+  select godzina_rozpoczecia
+  from godziny_otwarcia
+  where ID = dayofweek(data)
+  limit 1 into rozpoczecie;
+
+  set ilosc = 4 * hour(timediff(zakonczenie, rozpoczecie));
 
   # ustalanie id danej usługi
   select ID
   from uslugi_rehabilitacyjne
-  where nazwa like naz
-    and rodzaj like rodz
+  where nazwa like nazwa_uslugi
+    and rodzaj like rodzaj_uslugi
   limit 1
     into id_uslugi;
 
-  # można zmienić na wyszukiwanie dla każdego pracownika osobno
+  # można zmienić na wyszukiwanie dla każdego pracownika osobno, ale chyba lepiej tak
   create temporary table zabiegi_pomoc
   select *
   from zabiegi
@@ -143,14 +148,8 @@ begin
     and data_zabiegu like data;
 
   # tworzenie tablicy wyników
-  create temporary table wynik;
-
-  # ustalanie godziny rozpoczecia pracy kliniki w danym dniu
-  select godziny_otwarcia.godzina_rozpoczecia
-  from godziny_otwarcia
-  where godzina_rozpoczecia.ID = dayofweek(data) # dobra godzina
-        into czas;
-
+  drop table if exists wynik;
+  create table wynik (pracownik char(11) not null, godzina time not null, stanowisko int not null);
 
   # chodzę po wszystkich pracownikach, którzy mogą prowadzić ten zabieg
   open iterator;
@@ -158,20 +157,20 @@ begin
 
   while koniec <> false do
 
-
     # chodzę po wszystkich
-    set czas_pomoc = czas;
+    set czas_pomoc = rozpoczecie;
     set iterator = 0;
     while iterator < ilosc do
 
-      # procedura do której wrzucam pracownika, czas, usluge i zwraca mi czy moge gdzieś wrzucic osobe i gdzie
-      call czy_jest_gdzie_wolne_miejsce(concat(data, ' ', czas_pomoc, pracownik_pomoc, id_uslugi, warunek, id_stanowiska));
+    # procedura do której wrzucam pracownika, czas, usluge i zwraca mi czy moge gdzieś wrzucic osobe i gdzie
+    call czy_jest_gdzie_wolne_miejsce(concat(data, ' ', czas_pomoc), pracownik_pomoc, id_uslugi, warunek, id_stanowiska);
 
       if (warunek = true) then
-
+        insert into wynik (pracownik, godzina, stanowisko)
+        VALUES (pracownik_pomoc, czas_pomoc, id_stanowiska);
       end if ;
 
-      set czas_pomoc = addtime(czas_pomoc, "15:00");
+      set czas_pomoc = addtime(czas_pomoc, '15:00');
       set iterator = iterator = 1;
     end while //
 
@@ -179,8 +178,10 @@ begin
   fetch iterator into pracownik_pomoc;
   end while ;
 
+  select * from wynik;
+
   drop temporary table if exists zabiegi_pomoc;
+  drop table if exists wynik;
 
 end //
 delimiter ;
-
