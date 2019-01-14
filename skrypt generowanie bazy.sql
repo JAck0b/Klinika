@@ -11,7 +11,7 @@ create table uzytkownicy
 
 create table uprawnienia
 (
-  #ID    int         not null primary key auto_increment,
+  nr    int         not null,
   nazwa varchar(45) not null primary key,
   grupa varchar(45) not null
 );
@@ -103,12 +103,12 @@ create table stan_konta
 create table specjalizacje
 (
   uzytkownik  char(11) not null,
+  uprawnienia varchar(45) not null,
   constraint uzytkownikSp
-    foreign key (uzytkownik)
-      references uzytkownicy (PESEL)
+  foreign key (uzytkownik)
+    references uzytkownicy (PESEL)
       on update no action
       on delete no action,
-  uprawnienia varchar(45) not null,
   constraint uprawnieniaSp
     foreign key (uprawnienia)
       references uprawnienia (nazwa)
@@ -154,8 +154,8 @@ VALUES (0, 'Niedziela', '08:00:00', '16:00:00'),
        (5, 'Piatek', '08:00:00', '16:00:00'),
        (6, 'Sobota', '08:00:00', '16:00:00');
 
-insert into uprawnienia(nazwa, grupa)
-values ('Lasery A', 'Lasery'), ('Lasery B', 'Lasery'), ('Lasery C', 'Lasery'), ('Lasery D', 'Lasery'), ('Pole magnetyczne A', 'Pole magnetyczne'), ('Pole magnetyczne B', 'Pole magnetyczne'), ('Elektroterapia A', 'Elektroterapia'), ('Elektroterapia C', 'Elektroterapia'), ('Elektroterapia B', 'Elektroterapia'), ('Ultradźwięki', 'Ultradźwięki'), ('Gimnastyka C', 'Gimnastyka'), ('Gimnastyka B', 'Gimnastyka'), ('Gimnastyka A', 'Gimnastyka'), ('Gimnastyka D', 'Gimnastyka'), ('Fizjoterapia A', 'Fizjoterapia'), ('Masaż mechaniczny', 'Masaż'), ('Krioterapia C', 'Krioterapia'), ('Krioterapia B', 'Krioterapia'), ('Krioterapia A', 'Krioterapia'), ('Fizjoterapia B', 'Fizjoterapia'), ('Gimnastyka dziecko', 'Gimnastyka'), ('Gimnastyka dorośli', 'Gimnastyka'), ('Gimnastyka grupy', 'Gimnastyka'), ('Akupunktura A', 'Akupunktura'), ('Akupunktura C', 'Akupunktura'), ('Akupunktura B', 'Akupunktura'), ('Akupunktura D', 'Akupunktura'), ('Masaż relaksacyjny B', 'Masaż'), ('Masaż relaksacyjny C', 'Masaż'), ('Masaż relaksacyjny A', 'Masaż'), ('Kinesiotaping C', 'Kinesiotaping'), ('Kinesiotaping B', 'Kinesiotaping'), ('Kinesiotaping A', 'Kinesiotaping'), ('Masaż kobiet', 'Masaż'), ('Drenaż A', 'Drenaż'), ('Drenaż B', 'Drenaż'), ('Masaż klasyczny A', 'Masaż'), ('Masaż klasyczny C', 'Masaż'), ('Masaż klasyczny B', 'Masaż');
+insert into uprawnienia(nr,nazwa, grupa)
+values (1,'Lasery A', 'Lasery'), (2,'Lasery B', 'Lasery'), (3,'Lasery C', 'Lasery'), (4,'Lasery D', 'Lasery'), (5,'Pole magnetyczne A', 'Pole magnetyczne'), (6,'Pole magnetyczne B', 'Pole magnetyczne'), (7,'Elektroterapia A', 'Elektroterapia'), (8,'Elektroterapia C', 'Elektroterapia'), (9,'Elektroterapia B', 'Elektroterapia'), (10,'Ultradźwięki', 'Ultradźwięki'), (11,'Gimnastyka C', 'Gimnastyka'), (12,'Gimnastyka B', 'Gimnastyka'), (13,'Gimnastyka A', 'Gimnastyka'), (14,'Gimnastyka D', 'Gimnastyka'), (15,'Fizjoterapia A', 'Fizjoterapia'), (16,'Masaż mechaniczny', 'Masaż'), (17,'Krioterapia C', 'Krioterapia'), (18,'Krioterapia B', 'Krioterapia'), (19,'Krioterapia A', 'Krioterapia'), (20,'Fizjoterapia B', 'Fizjoterapia'), (21,'Gimnastyka dziecko', 'Gimnastyka'), (22,'Gimnastyka dorośli', 'Gimnastyka'), (23,'Gimnastyka grupy', 'Gimnastyka'), (24,'Akupunktura A', 'Akupunktura'), (25,'Akupunktura C', 'Akupunktura'), (26,'Akupunktura B', 'Akupunktura'), (27,'Akupunktura D', 'Akupunktura'), (28,'Masaż relaksacyjny B', 'Masaż'), (29,'Masaż relaksacyjny C', 'Masaż'), (30,'Masaż relaksacyjny A', 'Masaż'), (31,'Kinesiotaping C', 'Kinesiotaping'), (32,'Kinesiotaping B', 'Kinesiotaping'), (33,'Kinesiotaping A', 'Kinesiotaping'), (34,'Masaż kobiet', 'Masaż'), (35,'Drenaż A', 'Drenaż'), (36,'Drenaż B', 'Drenaż'), (37,'Masaż klasyczny A', 'Masaż'), (38,'Masaż klasyczny C', 'Masaż'), (39,'Masaż klasyczny B', 'Masaż');
 insert into dostep_do_stanowiska (stanowisko, wymagane_uprawnienia)
 values ('Lasery', 'Lasery A'),  ('Magnetokomora', 'Pole magnetyczne A'),  ('Elektrokomora', 'Elektroterapia A'),  ('Ultradźwięki komora', 'Ultradźwięki'),  ('Salka gimnastyczna', 'Gimnastyka A'),  ('Salka gimnastyczna', 'Gimnastyka dziecko'),  ('Salka gimnastyczna', 'Gimnastyka dorośli'),  ('Salka gimnastyczna', 'Gimnastyka grupy'),  ('Aquavibron', 'Fizjoterapia A'),  ('Wirówka', 'Masaż mechaniczny'),  ('Kriokomora', 'Krioterapia A'),  ('Lampy', 'Fizjoterapia B'),  ('Akupunktura', 'Akupunktura A'),  ('Salka spa', 'Masaż relaksacyjny A'),  ('Łóżko do masażu', 'Kinesiotaping A'),  ('Łóżko do masażu', 'Drenaż A'),  ('Łóżko do masażu', 'Masaż klasyczny A'),  ('Łóżko do masażu', 'Masaż kobiet'),  ('Łóżko do masażu', 'Akupunktura A');
 insert into uslugi_rehabilitacyjne (rodzaj, nazwa, czas_trwania, cena, uprawnienia)
@@ -328,7 +328,6 @@ BEGIN
   DECLARE peselbezkontrolnej char(10);
   DECLARE pesel char(11);
   DECLARE zmienna_losowa_1 INT;
-  DECLARE zmienna_losowa_2 INT;
 
   WHILE i < ilosc DO  #petla po ilosci
   SET j = 1;
@@ -368,6 +367,10 @@ BEGIN
   INSERT INTO stan_konta(uzytkownik, saldo)
   VALUE (pesel,zmienna_losowa_1 + j);
 
+  INSERT INTO specjalizacje (uzytkownik, uprawnienia)
+  VALUES (pesel,
+          (SELECT nazwa FROM uprawnienia WHERE nr = zmienna_losowa_1 % 39 +1) );
+
   SET i = i + 1;
   SET j = j + 1;
   END WHILE;
@@ -376,5 +379,6 @@ BEGIN
 END//
 DELIMITER ;
 
+CALL dodaj_uzytkownika_i_stan_konta(200,20);
 CALL dodaj_stanowiska();
-CALL dodaj_uzytkownika_i_stan_konta(20000,2000);
+# CALL dodaj_uzytkownika_i_stan_konta(20000,2000);
