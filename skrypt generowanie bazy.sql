@@ -123,7 +123,7 @@ create table dokumentacja
   nazwa_obiektu_testowanego varchar(50)  not null,
   czas                      int          not null comment 'Czas jest podawany w sekundach.',
   ilosc_rekodrow            int          not null,
-  comentarz                 varchar(100) not null
+  komentarz                 varchar(100) not null
 );
 
 create table dostep_do_stanowiska
@@ -142,10 +142,10 @@ create table godziny_otwarcia
   ID int not null primary key,
   nazwa varchar(15) not null,
   godzina_rozpoczecia time not null,
-  godzina_zaczonczenia time not null
+  godzina_zakonczenia time not null
 );
 
-insert into godziny_otwarcia (ID, nazwa, godzina_rozpoczecia, godzina_zaczonczenia)
+insert into godziny_otwarcia (ID, nazwa, godzina_rozpoczecia, godzina_zakonczenia)
 VALUES (0, 'Niedziela', '08:00:00', '16:00:00'),
        (1, 'Poniedzialek', '08:00:00', '16:00:00'),
        (2, 'Wtorek', '08:00:00', '16:00:00'),
