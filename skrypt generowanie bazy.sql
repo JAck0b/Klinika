@@ -324,17 +324,18 @@ BEGIN
   DECLARE data DATE;
   DECLARE peselbezkontrolnej char(10);
   WHILE i < ilosc DO
-  SET j = 0;
+  SET j = 1;
   SET data = DATE_SUB(mindata, INTERVAL rozmedaty DAY);
-  SET tesamedaty = FLOOR(RAND() * 100 + 1);
+  SET tesamedaty = FLOOR(RAND() * 200 + 1);
   WHILE j < tesamedaty DO
   SET peselbezkontrolnej = CONCAT(
       SUBSTRING(YEAR(data), 3, 2),
       IF(YEAR(data) < 2000,
-         LPAD(MONTH(data), 2, "0"),
-         LPAD(MONTH(data) + 20, 2, "0")),
-      LPAD(DAYOFMONTH(data), 2, "0"),
-      cast((9999 - j) as char(4))
+         LPAD(MONTH(data), 2, '0'),
+         LPAD(MONTH(data) + 20, 2, '0')),
+      LPAD(DAYOFMONTH(data), 2, '0'),
+      LPAD(9999-j, 4, '0')
+
     );
 
   INSERT INTO uzytkownicy (PESEL, imie, nazwisko, data_dolaczenia, rola)
@@ -357,10 +358,10 @@ BEGIN
   SET i = i + 1;
   SET j = j + 1;
   END WHILE;
-  SET rozmedaty = rozmedaty + FLOOR(RAND() * 200 + 1);
+  SET rozmedaty = rozmedaty + FLOOR(RAND() * 180) + 1;
   END WHILE;
 END//
 DELIMITER ;
 
 CALL dodaj_stanowiska();
-CALL dodaj_uzytkownika(5000,200);
+CALL dodaj_uzytkownika(20000,2000);
