@@ -1,6 +1,6 @@
 -- Tutaj są kody wszystkich procedur
 
-elimiter //
+delimiter //
 create procedure czy_jest_gdzie_wolne_miejsce(in kiedy datetime, in id_pracownika char(11), in id_uslugi int,
                                               out czy_mozna boolean, out gdzie_wolne int)
 begin
@@ -185,3 +185,11 @@ begin
 
 end //
 delimiter ;
+
+DROP PROCEDURE IF EXISTS doladowanie_konta;
+DELIMITER //
+CREATE PROCEDURE doladowanie_konta(IN PESEL char(11), IN kwota INT)
+BEGIN
+  UPDATE stan_konta SET saldo = saldo + kwota WHERE uzytkownik = PESEL;
+END//
+DELIMITER ;
