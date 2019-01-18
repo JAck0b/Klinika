@@ -591,7 +591,7 @@ BEGIN
           DATE_SUB(CURRENT_DATE, INTERVAL( zmienna_losowa_1 ) DAY),
           uzytkwnik );
 
-  IF uzytkwnik = 'Klient' THEN
+  IF uzytkwnik <> 'Klient' THEN
     INSERT INTO stan_konta(uzytkownik, saldo)
     VALUE (pesel,zmienna_losowa_1 % 200 + j);
   END IF;
