@@ -535,6 +535,10 @@ CALL dodaj_stanowiska();
 
 # założenie przy generowaniu - jest baaaardzo dużo klientów
 
+DELETE FROM zabiegi WHERE TRUE;
+
+# założenie przy generowaniu - jest baaaardzo dużo klientów
+
 DROP PROCEDURE IF EXISTS uzupelnianie_zabiegow;
 ALTER TABLE zabiegi AUTO_INCREMENT = 1;
 DELIMITER //
@@ -558,21 +562,18 @@ BEGIN
   DECLARE obecny_pracownik CHAR(11);
   DECLARE uprawnienia_pracownika VARCHAR(45);
   DECLARE grupa_pracownika VARCHAR(45);
-#   DECLARE rodzaj_stanowiska VARCHAR(45);
   DECLARE ilosc_klientow INT;
   DECLARE koniec_pracownikow BOOLEAN DEFAULT FALSE;
-#   DECLARE koniec_klientow BOOLEAN DEFAULT FALSE;
-#   DECLARE koniec_rodzaje_stanowisk BOOLEAN DEFAULT FALSE;
+  DECLARE zmienna_pomoc INT DEFAULT 0;
   DECLARE kursor_pracownicy CURSOR FOR
     SELECT PESEL
     FROM uzytkownicy
     WHERE rola LIKE 'Pracownik';
-  DECLARE CONTINUE HANDLER FOR NOT FOUND SET koniec_pracownikow = TRUE;
-#   DECLARE kursor_klienci CURSOR FOR
-#     SELECT PESEL
-#     FROM uzytkownicy
-#     WHERE rola LIKE 'Klient';
-#   DECLARE CONTINUE HANDLER FOR NOT FOUND SET koniec_klientow = TRUE;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND
+    BEGIN
+      SET koniec_pracownikow = TRUE;
+      SELECT 'handler';
+    END ;
 
   DROP TABLE IF EXISTS sekwencja_dodawania;
   CREATE TABLE sekwencja_dodawania
@@ -614,10 +615,8 @@ BEGIN
          ('Ultradźwięki komora', '00:30:00', 0),
          ('Ultradźwięki komora', '00:30:00', 0),
          ('Ultradźwięki komora', '00:30:00', 0),
-         ('Salka gimnastyczna', '01:15:00', 1),
-         ('Salka gimnastyczna', '01:45:00', 1),
-         ('Salka gimnastyczna', '01:15:00', 2),
-         ('Salka gimnastyczna', '02:15:00', 2),
+         ('Salka gimnastyczna', '01:15:00', 0),
+         ('Salka gimnastyczna', '02:15:00', 0),
          ('Aquavibron', '00:30:00', 0),
          ('Aquavibron', '00:30:00', 0),
          ('Aquavibron', '00:30:00', 0),
@@ -649,15 +648,10 @@ BEGIN
          ('Akupunktura', '01:30:00', 0),
          ('Salka spa', '01:30:00', 0),
          ('Salka spa', '01:30:00', 0),
-         ('Łóżko do masażu', '01:15:00', 1),
-         ('Łóżko do masażu', '01:15:00', 1),
-         ('Łóżko do masażu', '01:30:00', 1),
-         ('Łóżko do masażu', '00:30:00', 2),
-         ('Łóżko do masażu', '00:30:00', 2),
-         ('Łóżko do masażu', '01:00:00', 2),
-         ('Łóżko do masażu', '01:00:00', 2),
-         ('Łóżko do masażu', '00:30:00', 2),
-         ('Łóżko do masażu', '00:30:00', 2);
+         ('Łóżko do masażu', '01:15:00', 0),
+         ('Łóżko do masażu', '01:15:00', 0),
+         ('Łóżko do masażu', '01:30:00', 0);
+
 
   DROP TABLE IF EXISTS stanowiska_pomoc; # tablica z której będę usuwał używane stanowiska
   CREATE TABLE stanowiska_pomoc
@@ -695,74 +689,83 @@ BEGIN
     SET koniec_pracownikow = FALSE;
     OPEN kursor_pracownicy;
     FETCH kursor_pracownicy INTO obecny_pracownik;
-    SET wylosowane_stanowisko_id = -1;
     SET iterator_klientow = 0;
-    WHILE koniec_pracownikow = FALSE DO
-
+  WHILE koniec_pracownikow = FALSE DO
+    SET wylosowane_stanowisko_id = -1;
+    SET zmienna_pomoc = zmienna_pomoc + 1;
 
 
       SELECT uprawnienia.nazwa, uprawnienia.grupa
       FROM pracownicy_tablica
              JOIN specjalizacje ON pracownicy_tablica.PESEL LIKE specjalizacje.uzytkownik
              JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
+      WHERE pracownicy_tablica.PESEL LIKE obecny_pracownik
            LIMIT 1
       INTO uprawnienia_pracownika, grupa_pracownika;
+
+    # zmienić na counta i zmienić warunek w if niżej
+
 
       SELECT stanowiska_pomoc.ID, stanowiska_pomoc.max_ilosc_osob, stanowiska_pomoc.nazwa
       FROM stanowiska_pomoc
              JOIN dostep_do_stanowiska ON stanowiska_pomoc.nazwa = dostep_do_stanowiska.stanowisko
              JOIN uprawnienia ON dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-      WHERE uprawnienia.nazwa < uprawnienia_pracownika
+      WHERE uprawnienia.nazwa <= uprawnienia_pracownika
         AND uprawnienia.grupa = grupa_pracownika
       LIMIT 1
       INTO wylosowane_stanowisko_id, ilosc_osob_na_stanowisko, wylosowane_stanowisko_nazwa;
 
+#           SELECT wylosowane_stanowisko_id;
+
+
       IF wylosowane_stanowisko_id > 0 THEN # sprawdzam, czy jest jeszcze jakieś wolne stanowisko
 
-        SET ilosc_osob_na_stanowisko = ilosc_osob_na_stanowisko - MOD(iterator, 3); # ustalanie ile jest miejsc wolnych
+        SET ilosc_osob_na_stanowisko = ilosc_osob_na_stanowisko - MOD(wylosowane_stanowisko_id , 3); # ustalanie ile jest miejsc wolnych
 
         DELETE FROM stanowiska_pomoc WHERE ID = wylosowane_stanowisko_id; # usuwanie użytego stanowiska
 
         SELECT count(*) # wyliczanie jak dluga jest sekwencja danego rodzaju zabiegu
           FROM sekwencja_dodawania
-            WHERE pora_dnia <> 2 AND nazwa like wylosowane_stanowisko_nazwa
+            WHERE pora_dnia = 0 AND nazwa like wylosowane_stanowisko_nazwa
         ORDER BY ID
         INTO dlugosc_sekwencji;
+
 
         SET iterator_sekwencji = 0;
 
         SELECT godzina_rozpoczecia # ustalanie godziny rozpoczęcia
         FROM godziny_otwarcia
         WHERE ID = dayofweek(iterator_dni)
-              LIMIT 1
-              INTO iterator_godziny;
+        LIMIT 1
+        INTO iterator_godziny;
 
         SET warunek_petli = TRUE;
 
         # jak wchodzi, to przynajmniej jeden obrót będzie zrobiony
+        # przechodzi po wszystkich sekwencjach i odpowiednio losuje
         WHILE warunek_petli = TRUE DO # przebieganie po godzinach według odpowiedniej sekwencji
 
-          # losowanie odpowiedniej usługi
-          SET wylosowana_usluga = round(rand() * 100);
+        # losowanie odpowiedniej usługi
+        SET wylosowana_usluga = round(rand() * 100);
 
-          SELECT count(uslugi_rehabilitacyjne.ID)
-          FROM uslugi_rehabilitacyjne
-                 JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-          WHERE uprawnienia.grupa = grupa_pracownika
-            AND uprawnienia.nazwa < uprawnienia_pracownika
-                INTO ilosc_pasujacych_uslug;
+        SELECT count(uslugi_rehabilitacyjne.ID)
+        FROM uslugi_rehabilitacyjne
+        JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+        AND uprawnienia.nazwa <= uprawnienia_pracownika
+        INTO ilosc_pasujacych_uslug;
 
-          SET wylosowana_usluga =  MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
+        SET wylosowana_usluga =  MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
 
-          SELECT uslugi_rehabilitacyjne.ID
-          FROM uslugi_rehabilitacyjne
-                 JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-          WHERE uprawnienia.grupa = grupa_pracownika
-            AND uprawnienia.nazwa < uprawnienia_pracownika
-          LIMIT wylosowana_usluga, 1
-            INTO wylosowana_usluga_id;
+        SELECT uslugi_rehabilitacyjne.ID
+        FROM uslugi_rehabilitacyjne
+        JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+        AND uprawnienia.nazwa <= uprawnienia_pracownika
+        LIMIT wylosowana_usluga, 1
+        INTO wylosowana_usluga_id;
 
-          # w tym momencie mam pracownika, datę, stanowiko oraz usługę
+        # w tym momencie mam pracownika, datę, stanowiko oraz usługę
 
 
           SET iterator = 0;
@@ -774,8 +777,11 @@ BEGIN
             LIMIT iterator_klientow, 1
             INTO obecny_klient;
 
+            # TODO usunąć to drugie dodawanie przy niesymetrycznym dodawaniu
+            # dodanie tych zabiegów dwa razy, rano i wieczorem
             INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-            VALUE (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id, wylosowane_stanowisko_id);
+            VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id, wylosowane_stanowisko_id),
+                   (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ',addtime(iterator_godziny, '04:00:00')), wylosowana_usluga_id, wylosowane_stanowisko_id);
 
 
             SET iterator = iterator + 1;
@@ -803,133 +809,148 @@ BEGIN
 
       END IF ;
       SET wylosowane_stanowisko_id = -1;
+      FETCH kursor_pracownicy INTO obecny_pracownik;
 
     END WHILE ;
     CLOSE kursor_pracownicy;
 
 
-
-    # wypełniam tabelę dostępnymi stanowiskami
-    DELETE FROM stanowiska_pomoc WHERE TRUE;
-    INSERT INTO stanowiska_pomoc (ID, nazwa, max_ilosc_osob)
-    SELECT *
-    FROM stanowiska;
-
-    SET koniec_pracownikow = FALSE;
-    OPEN kursor_pracownicy;
-    FETCH kursor_pracownicy INTO obecny_pracownik;
-    SET wylosowane_stanowisko_id = -1;
-    SET iterator_klientow = 0;
-    WHILE koniec_pracownikow = FALSE DO
-
-
-
-      SELECT uprawnienia.nazwa, uprawnienia.grupa
-      FROM pracownicy_tablica
-             JOIN specjalizacje ON pracownicy_tablica.PESEL LIKE specjalizacje.uzytkownik
-             JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
-           LIMIT 1
-      INTO uprawnienia_pracownika, grupa_pracownika;
-
-      SELECT stanowiska_pomoc.ID, stanowiska_pomoc.max_ilosc_osob, stanowiska_pomoc.nazwa
-      FROM stanowiska_pomoc
-             JOIN dostep_do_stanowiska ON stanowiska_pomoc.nazwa = dostep_do_stanowiska.stanowisko
-             JOIN uprawnienia ON dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-      WHERE uprawnienia.nazwa < uprawnienia_pracownika
-        AND uprawnienia.grupa = grupa_pracownika
-      LIMIT 1
-      INTO wylosowane_stanowisko_id, ilosc_osob_na_stanowisko, wylosowane_stanowisko_nazwa;
-
-      IF wylosowane_stanowisko_id > 0 THEN # sprawdzam, czy jest jeszcze jakieś wolne stanowisko
-
-        SET ilosc_osob_na_stanowisko = ilosc_osob_na_stanowisko - MOD(iterator, 3); # ustalanie ile jest miejsc wolnych
-
-        DELETE FROM stanowiska_pomoc WHERE ID = wylosowane_stanowisko_id; # usuwanie użytego stanowiska
-
-        SELECT count(*) # wyliczanie jak dluga jest sekwencja danego rodzaju zabiegu
-          FROM sekwencja_dodawania
-            WHERE pora_dnia <> 1 AND nazwa like wylosowane_stanowisko_nazwa
-        ORDER BY ID
-        INTO dlugosc_sekwencji;
-
-        SET iterator_sekwencji = 0;
-
-        SET iterator_godziny = '12:00:00'; #################################################################### do pomyślenia
-
-        SET warunek_petli = TRUE;
-
-        # jak wchodzi, to przynajmniej jeden obrót będzie zrobiony
-        WHILE warunek_petli = TRUE DO # przebieganie po godzinach według odpowiedniej sekwencji
-
-          # losowanie odpowiedniej usługi
-          SET wylosowana_usluga = round(rand() * 100);
-
-          SELECT count(uslugi_rehabilitacyjne.ID)
-          FROM uslugi_rehabilitacyjne
-                 JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-          WHERE uprawnienia.grupa = grupa_pracownika
-            AND uprawnienia.nazwa < uprawnienia_pracownika
-                INTO ilosc_pasujacych_uslug;
-
-          SET wylosowana_usluga =  MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
-
-          SELECT uslugi_rehabilitacyjne.ID
-          FROM uslugi_rehabilitacyjne
-                 JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-          WHERE uprawnienia.grupa = grupa_pracownika
-            AND uprawnienia.nazwa < uprawnienia_pracownika
-          LIMIT wylosowana_usluga, 1
-            INTO wylosowana_usluga_id;
-
-          # w tym momencie mam pracownika, datę, stanowiko oraz usługę
-
-
-          SET iterator = 0;
-
-          WHILE iterator < ilosc_osob_na_stanowisko DO
-
-            SELECT PESEL
-            FROM klienci_tablica
-            LIMIT iterator_klientow, 1
-            INTO obecny_klient;
-
-            INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-            VALUE (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id, wylosowane_stanowisko_id);
-
-
-            SET iterator = iterator + 1;
-            SET iterator_klientow = iterator_klientow + 1;
-          END WHILE ;
-
-          SELECT czas # wyliczanie kiedy bedzie nastepny zabieg
-          FROM sekwencja_dodawania
-          WHERE pora_dnia <> 1
-            AND nazwa LIKE wylosowane_stanowisko_nazwa
-          ORDER BY ID
-          LIMIT iterator_sekwencji, 1
-            INTO pomoc_godziny;
-
-          SET iterator_godziny = addtime(iterator_godziny, pomoc_godziny);
-          SET iterator_sekwencji = iterator_sekwencji + 1;
-
-          IF iterator_sekwencji = dlugosc_sekwencji THEN
-
-            SET warunek_petli = FALSE;
-
-          END IF ;
-
-        END WHILE;
-
-      END IF ;
-      SET wylosowane_stanowisko_id = -1;
-
-
-    END WHILE ;
-      CLOSE kursor_pracownicy;
+    # TODO odkomentować w przypadku niesymetrycznego dodaawania oraz upeznić się, że się zmieniło pierwsze TODO
+#
+#     # wypełniam tabelę dostępnymi stanowiskami
+#     DELETE FROM stanowiska_pomoc WHERE TRUE;
+#     INSERT INTO stanowiska_pomoc (ID, nazwa, max_ilosc_osob)
+#     SELECT *
+#     FROM stanowiska;
+#
+#     SET koniec_pracownikow = FALSE;
+#     OPEN kursor_pracownicy;
+#     FETCH kursor_pracownicy INTO obecny_pracownik;
+#     SET iterator_klientow = 0;
+#   WHILE koniec_pracownikow = FALSE DO
+#     SET wylosowane_stanowisko_id = -1;
+#     SET zmienna_pomoc = zmienna_pomoc + 1;
+#
+#
+#       SELECT uprawnienia.nazwa, uprawnienia.grupa
+#       FROM pracownicy_tablica
+#              JOIN specjalizacje ON pracownicy_tablica.PESEL LIKE specjalizacje.uzytkownik
+#              JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
+#       WHERE pracownicy_tablica.PESEL LIKE obecny_pracownik
+#            LIMIT 1
+#       INTO uprawnienia_pracownika, grupa_pracownika;
+#
+#     # zmienić na counta i zmienić warunek w if niżej
+#
+#
+#       SELECT stanowiska_pomoc.ID, stanowiska_pomoc.max_ilosc_osob, stanowiska_pomoc.nazwa
+#       FROM stanowiska_pomoc
+#              JOIN dostep_do_stanowiska ON stanowiska_pomoc.nazwa = dostep_do_stanowiska.stanowisko
+#              JOIN uprawnienia ON dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
+#       WHERE uprawnienia.nazwa <= uprawnienia_pracownika
+#         AND uprawnienia.grupa = grupa_pracownika
+#       LIMIT 1
+#       INTO wylosowane_stanowisko_id, ilosc_osob_na_stanowisko, wylosowane_stanowisko_nazwa;
+#
+# #           SELECT wylosowane_stanowisko_id;
+#
+#
+#       IF wylosowane_stanowisko_id > 0 THEN # sprawdzam, czy jest jeszcze jakieś wolne stanowisko
+#
+#         SET ilosc_osob_na_stanowisko = ilosc_osob_na_stanowisko - MOD(wylosowane_stanowisko_id , 3); # ustalanie ile jest miejsc wolnych
+#
+#         DELETE FROM stanowiska_pomoc WHERE ID = wylosowane_stanowisko_id; # usuwanie użytego stanowiska
+#
+#         SELECT count(*) # wyliczanie jak dluga jest sekwencja danego rodzaju zabiegu
+#           FROM sekwencja_dodawania
+#             WHERE pora_dnia = 0  AND nazwa like wylosowane_stanowisko_nazwa
+#         ORDER BY ID
+#         INTO dlugosc_sekwencji;
+#
+#
+#         SET iterator_sekwencji = 0;
+#
+#         SET iterator_godziny = '12:00:00';
+#
+#         SET warunek_petli = TRUE;
+#
+#         # jak wchodzi, to przynajmniej jeden obrót będzie zrobiony
+#         # przechodzi po wszystkich sekwencjach i odpowiednio losuje
+#         WHILE warunek_petli = TRUE DO # przebieganie po godzinach według odpowiedniej sekwencji
+#
+#         # losowanie odpowiedniej usługi
+#         SET wylosowana_usluga = round(rand() * 100);
+#
+#         SELECT count(uslugi_rehabilitacyjne.ID)
+#         FROM uslugi_rehabilitacyjne
+#         JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+#         WHERE uprawnienia.grupa = grupa_pracownika
+#         AND uprawnienia.nazwa <= uprawnienia_pracownika
+#         INTO ilosc_pasujacych_uslug;
+#
+#         SET wylosowana_usluga =  MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
+#
+#         SELECT uslugi_rehabilitacyjne.ID
+#         FROM uslugi_rehabilitacyjne
+#         JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+#         WHERE uprawnienia.grupa = grupa_pracownika
+#         AND uprawnienia.nazwa <= uprawnienia_pracownika
+#         LIMIT wylosowana_usluga, 1
+#         INTO wylosowana_usluga_id;
+#
+#         # w tym momencie mam pracownika, datę, stanowiko oraz usługę
+#
+#
+#           SET iterator = 0;
+#
+#           WHILE iterator < ilosc_osob_na_stanowisko DO
+#
+#             SELECT PESEL
+#             FROM klienci_tablica
+#             LIMIT iterator_klientow, 1
+#             INTO obecny_klient;
+#
+#             # TODO usunąć to drugie dodawanie przy niesymetrycznym dodawaniu
+#             # dodanie tych zabiegów dwa razy, rano i wieczorem
+#             INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
+#             VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id, wylosowane_stanowisko_id),
+#
+#
+#             SET iterator = iterator + 1;
+#             SET iterator_klientow = iterator_klientow + 1;
+#           END WHILE ;
+#
+#           SELECT czas # wyliczanie kiedy bedzie nastepny zabieg
+#           FROM sekwencja_dodawania
+#           WHERE pora_dnia <> 2
+#             AND nazwa LIKE wylosowane_stanowisko_nazwa
+#           ORDER BY ID
+#           LIMIT iterator_sekwencji, 1
+#             INTO pomoc_godziny;
+#
+#           SET iterator_godziny = addtime(iterator_godziny, pomoc_godziny);
+#           SET iterator_sekwencji = iterator_sekwencji + 1;
+#
+#           IF iterator_sekwencji = dlugosc_sekwencji THEN
+#
+#             SET warunek_petli = FALSE;
+#
+#           END IF ;
+#
+#         END WHILE;
+#
+#       END IF ;
+#       SET wylosowane_stanowisko_id = -1;
+#       FETCH kursor_pracownicy INTO obecny_pracownik;
+#
+#     END WHILE ;
+#     CLOSE kursor_pracownicy;
 
 
     SET iterator_dni = ADDDATE(iterator_dni, INTERVAL 1 DAY );
   END WHILE ;
+
+  SELECT zmienna_pomoc;
 
 
   DROP TABLE IF EXISTS stanowiska_pomoc;
@@ -939,5 +960,5 @@ BEGIN
 END //
 DELIMITER ;
 
-call uzupelnianie_zabiegow(now(), '2019-01-16');
+call uzupelnianie_zabiegow(date(now()), date(now()));
 DROP PROCEDURE IF EXISTS uzupelnianie_zabiegow;
