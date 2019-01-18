@@ -1136,7 +1136,7 @@ BEGIN
   SELECT zmienna_pomoc;
 #TODO POTRZEBUJE PESEL MENAGERA
   UPDATE stan_konta
-  SET stan_konta.saldo = -2
+  SET stan_konta.saldo = calkowita_kwota_za_zabiegi
   WHERE uzytkownik = pesel_menagera;
 
   DROP TABLE IF EXISTS stanowiska_pomoc;
