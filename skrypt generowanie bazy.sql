@@ -668,15 +668,14 @@ BEGIN
           DATE_SUB(CURRENT_DATE, INTERVAL (zmienna_losowa_1) DAY),
           uzytkwnik);
 
-  IF uzytkwnik <> 'Klient' THEN
+  IF uzytkwnik <> 'Pracownik' THEN
     INSERT INTO stan_konta(uzytkownik, saldo)
       VALUE (pesel, zmienna_losowa_1 % 200 + j);
-    IF uzytkwnik <> 'Prezes' THEN
-      INSERT INTO specjalizacje (pracownik, uprawnienia, pensja)
-      VALUES (pesel,
-              (SELECT nazwa FROM uprawnienia WHERE nr = zmienna_losowa_1 % 39 + 1),
-              zmienna_losowa_1 + 2000);
-    END IF;
+  ELSE
+    INSERT INTO specjalizacje (pracownik, uprawnienia, pensja)
+    VALUES (pesel,
+            (SELECT nazwa FROM uprawnienia WHERE nr = zmienna_losowa_1 % 39 + 1),
+            zmienna_losowa_1 + 2000);
   END IF;
 
 
@@ -744,7 +743,7 @@ BEGIN
   DECLARE CONTINUE HANDLER FOR NOT FOUND
     BEGIN
       SET koniec_pracownikow = TRUE;
-      SELECT 'handler';
+#       SELECT 'handler';
     END;
 
   DROP TABLE IF EXISTS sekwencja_dodawania;
@@ -1238,4 +1237,3 @@ CALL uzupelnianie_dostep_do_stanowiska();
 CALL dodaj_uzytkownika_i_stan_konta(500, 10);
 #CALL dodaj_uzytkownika_i_stan_konta(20000, 2000);
 CALL uzupelnianie_zabiegow(date_sub(date(now()), INTERVAL 10 DAY), date(now()));
-
