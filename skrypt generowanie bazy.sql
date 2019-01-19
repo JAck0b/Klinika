@@ -48,7 +48,7 @@ CREATE TABLE transakcje
       ON DELETE NO ACTION,
   data     DATE                                          NOT NULL,
   kwota    INT                                           NOT NULL,
-  opis     ENUM ('pensja', 'za_zabieg', 'zwrot', 'inne') NOT NULL
+  opis     ENUM ('pensja', 'za_zabieg', 'zwrot', 'premia', 'inne') NOT NULL
 );
 
 CREATE TABLE stanowiska
