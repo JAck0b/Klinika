@@ -151,14 +151,14 @@ CREATE TABLE godziny_otwarcia
 );
 
 
-INSERT INTO godziny_otwarcia (ID, nazwa, godzina_rozpoczecia, godzina_zakonczenia)
-VALUES (0, 'Niedziela', '08:00:00', '16:00:00'),
-       (1, 'Poniedzialek', '08:00:00', '16:00:00'),
-       (2, 'Wtorek', '08:00:00', '16:00:00'),
-       (3, 'Sroda', '08:00:00', '16:00:00'),
-       (4, 'Czwartek', '08:00:00', '16:00:00'),
-       (5, 'Piatek', '08:00:00', '16:00:00'),
-       (6, 'Sobota', '08:00:00', '16:00:00');
+insert into godziny_otwarcia (ID, nazwa, godzina_rozpoczecia, godzina_zakonczenia)
+VALUES (1, 'Niedziela', '08:00:00', '16:00:00'),
+       (2, 'Poniedzialek', '08:00:00', '16:00:00'),
+       (3, 'Wtorek', '08:00:00', '16:00:00'),
+       (4, 'Sroda', '08:00:00', '16:00:00'),
+       (5, 'Czwartek', '08:00:00', '16:00:00'),
+       (6, 'Piatek', '08:00:00', '16:00:00'),
+       (7, 'Sobota', '08:00:00', '16:00:00');
 
 INSERT INTO uprawnienia(nr, nazwa, grupa)
 VALUES (1, 'Lasery A', 'Lasery'),
@@ -180,7 +180,7 @@ VALUES (1, 'Lasery A', 'Lasery'),
        (17, 'Krioterapia C', 'Krioterapia'),
        (18, 'Krioterapia B', 'Krioterapia'),
        (19, 'Krioterapia A', 'Krioterapia'),
-       (20, 'Fizjoterapia B', 'Fizjoterapia'),
+       (20, 'Lampy A', 'Lampy'),
        (21, 'Gimnastyka dziecko', 'Gimnastyka'),
        (22, 'Gimnastyka dorośli', 'Gimnastyka'),
        (23, 'Gimnastyka grupy', 'Gimnastyka'),
@@ -248,8 +248,8 @@ VALUES ('Laseroterapia', 'Argonowy', 30, 10, 'Lasery A'),
        ('Krioterapia', 'Szyja', 30, 11, 'Krioterapia C'),
        ('Krioterapia', 'Staw biodrowy', 30, 11, 'Krioterapia B'),
        ('Krioterapia', 'Paliczki', 30, 11, 'Krioterapia B'),
-       ('Lampa sollux', 'Czerwony filtr', 30, 17, 'Fizjoterapia B'),
-       ('Lampa sollux', 'Niebieska filtr', 30, 7, 'Fizjoterapia B'),
+       ('Lampa sollux', 'Czerwony filtr', 30, 17, 'Lampy A'),
+        ('Lampa sollux', 'Niebieska filtr', 30, 7, 'Lampy A'),
        ('Gimnastyka korekcyjna', 'Dziecko', 75, 35, 'Gimnastyka dziecko'),
        ('Gimnastyka korekcyjna', 'Młodzież', 75, 35, 'Gimnastyka dorośli'),
        ('Gimnastyka korekcyjna', 'Młodzież', 105, 45, 'Gimnastyka dorośli'),
@@ -500,7 +500,7 @@ BEGIN
 
   SET i = 0;
   WHILE i < 30 DO
-  INSERT INTO dostep_do_stanowiska (stanowisko, wymagane_uprawnienia) VALUES (iterator, 'Fizjoterapia B');
+  INSERT INTO dostep_do_stanowiska (stanowisko, wymagane_uprawnienia) VALUES (iterator, 'Lampy A');
   SET i = i + 1;
   SET iterator = iterator + 1;
   END WHILE;
