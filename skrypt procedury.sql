@@ -1,195 +1,300 @@
 -- Tutaj są kody wszystkich procedur
+DROP PROCEDURE IF EXISTS czy_jest_gdzie_wolne_miejsce;
+DELIMITER //
+CREATE PROCEDURE czy_jest_gdzie_wolne_miejsce(IN kiedy DATETIME, IN id_pracownika CHAR(11), IN id_uslugi INT,
+                                              OUT czy_mozna BOOLEAN, OUT gdzie_wolne INT)
+BEGIN
+  DECLARE obecna_ilosc_osob INT DEFAULT 0;
+  DECLARE maksymalna_liczba_osob INT DEFAULT 0;
+  DECLARE czas_zaplanowanych_zabiegow INT DEFAULT 0;
+  DECLARE uprawnienia_zaplanowanego_prowadzacego VARCHAR(45);
+  DECLARE grupa_zaplanowanego_prowadzacego VARCHAR(45);
+  DECLARE id_zaplanowanego_stanowiska INT;
 
-delimiter //
-create procedure czy_jest_gdzie_wolne_miejsce(in kiedy datetime, in id_pracownika char(11), in id_uslugi int,
-                                              out czy_mozna boolean, out gdzie_wolne int)
-begin
-  declare obecna_ilosc_osob int default 0;
-  declare maksymalna_liczba_osob int default 0;
-  declare czas_zaplanowanych_zabiegow int default 0;
-  declare uprawnienia_zaplanowanego_prowadzacego varchar(45);
-  declare grupa_zaplanowanego_prowadzacego varchar(45);
-  declare id_zaplanowanego_stanowiska int;
+  DECLARE czas_nowego_zabiegu INT DEFAULT 0;
+  DECLARE uprawnienia_nowego_zabiegu VARCHAR(45);
+  DECLARE grupa_nowego_zabiegu VARCHAR(45);
 
-  declare czas_nowego_zabiegu int default 0;
-  declare uprawnienia_nowego_zabiegu varchar(45);
-  declare grupa_nowego_zabiegu varchar(45);
-
-  set czy_mozna = false;
-  set gdzie_wolne = -1;
+  SET czy_mozna = FALSE;
+  SET gdzie_wolne = -1;
 
   # wszystkie zabiegi w danym momencie wykonywane przez podanego pracownika
-  create temporary table zabiegi_pomoc
-  select *
-  from zabiegi
-  where pracownik like id_pracownika
-    and data_zabiegu like kiedy;
+  CREATE TEMPORARY TABLE zabiegi_pomoc
+  SELECT *
+  FROM zabiegi
+  WHERE pracownik LIKE id_pracownika
+    AND data_zabiegu LIKE kiedy;
 
   # znajdowanie uprawnień prowadzącego oraz jego grupy
-  select uprawnienia.nazwa, uprawnienia.grupa
-  from specjalizacje join uprawnienia on specjalizacje.uprawnienia = uprawnienia.nazwa
-  where specjalizacje.uzytkownik like id_pracownika limit 1 into uprawnienia_zaplanowanego_prowadzacego, grupa_zaplanowanego_prowadzacego;
+  SELECT uprawnienia.nazwa, uprawnienia.grupa
+  FROM specjalizacje
+         JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
+  WHERE specjalizacje.uzytkownik LIKE id_pracownika
+  LIMIT 1 INTO uprawnienia_zaplanowanego_prowadzacego, grupa_zaplanowanego_prowadzacego;
 
   # znajdowanie minimalnych uprawnień, grupy uprawnień oraz czasu nowego zebiegu
-  select uprawnienia.nazwa, uprawnienia.grupa, uslugi_rehabilitacyjne.czas_trwania
-  from uslugi_rehabilitacyjne join uprawnienia on uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-  where uslugi_rehabilitacyjne.ID = id_uslugi limit 1 into uprawnienia_nowego_zabiegu, grupa_nowego_zabiegu, czas_nowego_zabiegu;
+  SELECT uprawnienia.nazwa, uprawnienia.grupa, uslugi_rehabilitacyjne.czas_trwania
+  FROM uslugi_rehabilitacyjne
+         JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+  WHERE uslugi_rehabilitacyjne.ID = id_uslugi
+  LIMIT 1 INTO uprawnienia_nowego_zabiegu, grupa_nowego_zabiegu, czas_nowego_zabiegu;
 
   # sprawdzenie, czy ten prowadzący w ogóle może prowadzić ten zabieg
-  if grupa_nowego_zabiegu like grupa_zaplanowanego_prowadzacego and
-     uprawnienia_nowego_zabiegu <= uprawnienia_zaplanowanego_prowadzacego then
+  IF grupa_nowego_zabiegu LIKE grupa_zaplanowanego_prowadzacego AND
+     uprawnienia_nowego_zabiegu <= uprawnienia_zaplanowanego_prowadzacego THEN
 
     # znajdowanie ile osób jest teraz umówionych i jakie jest id stanowiska na którym będzie zabieg
-    select count(ID), stanowisko
-    from zabiegi_pomoc
-    group by stanowisko into obecna_ilosc_osob, id_zaplanowanego_stanowiska;
+    SELECT count(ID), stanowisko
+    FROM zabiegi_pomoc
+    GROUP BY stanowisko INTO obecna_ilosc_osob, id_zaplanowanego_stanowiska;
 
     # znajdowanie czasu zaplanowanego zabiegu
-    select distinct uslugi_rehabilitacyjne.czas_trwania
-    from uslugi_rehabilitacyjne
-           join zabiegi_pomoc on uslugi_rehabilitacyjne.ID = zabiegi_pomoc.usluga limit 1 into czas_zaplanowanych_zabiegow;
+    SELECT DISTINCT uslugi_rehabilitacyjne.czas_trwania
+    FROM uslugi_rehabilitacyjne
+           JOIN zabiegi_pomoc ON uslugi_rehabilitacyjne.ID = zabiegi_pomoc.usluga
+    LIMIT 1 INTO czas_zaplanowanych_zabiegow;
 
     # znajdowanie jaka jest maksymalna liczba osób na danym stanowisku
-    select stanowiska.max_ilosc_osob
-    from stanowiska
-    where ID = id_zaplanowanego_stanowiska into maksymalna_liczba_osob;
+    SELECT stanowiska.max_ilosc_osob
+    FROM stanowiska
+    WHERE ID = id_zaplanowanego_stanowiska INTO maksymalna_liczba_osob;
 
-    if obecna_ilosc_osob >= 1 and obecna_ilosc_osob + 1 < maksymalna_liczba_osob and
-       czas_nowego_zabiegu = czas_zaplanowanych_zabiegow then
+    IF obecna_ilosc_osob >= 1 AND obecna_ilosc_osob + 1 < maksymalna_liczba_osob AND
+       czas_nowego_zabiegu = czas_zaplanowanych_zabiegow THEN
       # trzeba sprawdzic czy miejsce sie zgadza, czy czas jest ok oraz czy jest jeszcze miejsce
 
-      set czy_mozna = true;
-      set gdzie_wolne = id_zaplanowanego_stanowiska;
+      SET czy_mozna = TRUE;
+      SET gdzie_wolne = id_zaplanowanego_stanowiska;
 
-    else
+    ELSE
       # trzeba znaleźć nowe puste stanowisko
 
-#       select stanowiska.ID
-#       from stanowiska
-#              join zabiegi on stanowiska.ID = zabiegi.stanowisko
-#              join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
-#              join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-#       where uprawnienia.nazwa like uprawnienia_nowego_zabiegu
-#         and uprawnienia.grupa like grupa_nowego_zabiegu
-#       having count(zabiegi.ID) = 0 limit 1 into gdzie_wolne;
+      #       select stanowiska.ID
+      #       from stanowiska
+      #              join zabiegi on stanowiska.ID = zabiegi.stanowisko
+      #              join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
+      #              join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
+      #       where uprawnienia.nazwa like uprawnienia_nowego_zabiegu
+      #         and uprawnienia.grupa like grupa_nowego_zabiegu
+      #       having count(zabiegi.ID) = 0 limit 1 into gdzie_wolne;
 
-      select stanowiska.ID
-      from stanowiska
-             left join zabiegi on stanowiska.ID = zabiegi.stanowisko
-             join dostep_do_stanowiska on stanowiska.nazwa = dostep_do_stanowiska.stanowisko
-             join uprawnienia on dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
-      where uprawnienia.grupa like grupa_nowego_zabiegu
-        and zabiegi.data_zabiegu like kiedy
-      group by stanowiska.ID
-      having count(zabiegi.ID) = 0
-      limit 1 into gdzie_wolne;
+      SELECT stanowiska.ID
+      FROM stanowiska
+             LEFT JOIN zabiegi ON stanowiska.ID = zabiegi.stanowisko
+             JOIN dostep_do_stanowiska ON stanowiska.nazwa = dostep_do_stanowiska.stanowisko
+             JOIN uprawnienia ON dostep_do_stanowiska.wymagane_uprawnienia = uprawnienia.nazwa
+      WHERE uprawnienia.grupa LIKE grupa_nowego_zabiegu
+        AND zabiegi.data_zabiegu LIKE kiedy
+      GROUP BY stanowiska.ID
+      HAVING count(zabiegi.ID) = 0
+      LIMIT 1 INTO gdzie_wolne;
 
-      if gdzie_wolne <> -1 then
-        set czy_mozna = true;
-      end if ;
+      IF gdzie_wolne <> -1 THEN
+        SET czy_mozna = TRUE;
+      END IF;
 
-    end if ;
+    END IF;
 
-  end if ;
+  END IF;
 
-end //
-delimiter ;
-
+END //
+DELIMITER ;
 
 # TODO można usunąć ilość i zostawić iterowanie po czasie
-delimiter //
-create procedure wolne_miejsca(in data date, in nazwa_uslugi varchar(100), in rodzaj_uslugi varchar(50))
-begin
-  declare iterator int default 0;
-  declare warunek boolean default 0; # warunek czy jest dobra procedura
-  declare rozpoczecie time; # godzina rozpoczęcia pracy w tym dniu
-  declare zakonczenie time; # godzina zakończenia pracy w tym dniu
-  declare ilosc int; # ilość przejść pętli
-  declare czas_pomoc time; # iterator godzin
-  declare koniec boolean default true;
-  declare pracownik_pomoc char(11);
-  declare id_uslugi int;
-  declare id_stanowiska int;
-  declare iterator cursor for (select uzytkownicy.PESEL # trzeba unikać selectowania zabiegów
-                               from uzytkownicy
-                                      join specjalizacje s on uzytkownicy.PESEL = s.uzytkownik
-                                      join uprawnienia u on s.uprawnienia = u.nazwa
-                                      join uslugi_rehabilitacyjne ur on u.nazwa = ur.uprawnienia
-                               where ur.nazwa like nazwa_uslugi
-                                 and ur.rodzaj like rodzaj_uslugi
-                                 and uzytkownicy.rola like 'Pracownik');
-  declare continue handler for not found set koniec = false;
+DROP PROCEDURE IF EXISTS wolne_miejsca;
+DELIMITER //
+CREATE PROCEDURE wolne_miejsca(IN data DATE, IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50))
+BEGIN
+  DECLARE iterator INT DEFAULT 0;
+  DECLARE warunek BOOLEAN DEFAULT 0; # warunek czy jest dobra procedura
+  DECLARE rozpoczecie TIME; # godzina rozpoczęcia pracy w tym dniu
+  DECLARE zakonczenie TIME; # godzina zakończenia pracy w tym dniu
+  DECLARE ilosc INT; # ilość przejść pętli
+  DECLARE czas_pomoc TIME; # iterator godzin
+  DECLARE koniec BOOLEAN DEFAULT TRUE;
+  DECLARE pracownik_pomoc CHAR(11);
+  DECLARE id_uslugi INT;
+  DECLARE id_stanowiska INT;
+  DECLARE iterator CURSOR FOR (SELECT uzytkownicy.PESEL # trzeba unikać selectowania zabiegów
+                               FROM uzytkownicy
+                                      JOIN specjalizacje s ON uzytkownicy.PESEL = s.uzytkownik
+                                      JOIN uprawnienia u ON s.uprawnienia = u.nazwa
+                                      JOIN uslugi_rehabilitacyjne ur ON u.nazwa = ur.uprawnienia
+                               WHERE ur.nazwa LIKE nazwa_uslugi
+                                 AND ur.rodzaj LIKE rodzaj_uslugi
+                                 AND uzytkownicy.rola LIKE 'Pracownik');
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET koniec = FALSE;
 
-  select godzina_zakonczenia
-  from godziny_otwarcia
-  where ID = dayofweek(data)
-  limit 1 into zakonczenie;
+  SELECT godzina_zakonczenia
+  FROM godziny_otwarcia
+  WHERE ID = dayofweek(data)
+  LIMIT 1 INTO zakonczenie;
 
-  select godzina_rozpoczecia
-  from godziny_otwarcia
-  where ID = dayofweek(data)
-  limit 1 into rozpoczecie;
+  SELECT godzina_rozpoczecia
+  FROM godziny_otwarcia
+  WHERE ID = dayofweek(data)
+  LIMIT 1 INTO rozpoczecie;
 
-  set ilosc = 4 * hour(timediff(zakonczenie, rozpoczecie));
+  SET ilosc = 4 * hour(timediff(zakonczenie, rozpoczecie));
 
   # ustalanie id danej usługi
-  select ID
-  from uslugi_rehabilitacyjne
-  where nazwa like nazwa_uslugi
-    and rodzaj like rodzaj_uslugi
-  limit 1
-    into id_uslugi;
+  SELECT ID
+  FROM uslugi_rehabilitacyjne
+  WHERE nazwa LIKE nazwa_uslugi
+    AND rodzaj LIKE rodzaj_uslugi
+  LIMIT 1
+    INTO id_uslugi;
 
   # można zmienić na wyszukiwanie dla każdego pracownika osobno, ale chyba lepiej tak
-  create temporary table zabiegi_pomoc
-  select *
-  from zabiegi
-  where usluga = id_uslugi
-    and data_zabiegu like data;
+  CREATE TEMPORARY TABLE zabiegi_pomoc
+  SELECT *
+  FROM zabiegi
+  WHERE usluga = id_uslugi
+    AND data_zabiegu LIKE data;
 
   # tworzenie tablicy wyników
-  drop table if exists wynik;
-  create table wynik (pracownik char(11) not null, godzina time not null, stanowisko int not null);
+  DROP TABLE IF EXISTS wynik;
+  CREATE TABLE wynik
+  (
+    pracownik  CHAR(11) NOT NULL,
+    godzina    TIME     NOT NULL,
+    stanowisko INT      NOT NULL
+  );
 
   # chodzę po wszystkich pracownikach, którzy mogą prowadzić ten zabieg
-  open iterator;
-  fetch iterator into pracownik_pomoc;
+  OPEN iterator;
+  FETCH iterator INTO pracownik_pomoc;
 
-  while koniec <> false do
+  WHILE koniec <> FALSE DO
 
-    # chodzę po wszystkich
-    set czas_pomoc = rozpoczecie;
-    set iterator = 0;
-    while iterator < ilosc do
+  # chodzę po wszystkich
+  SET czas_pomoc = rozpoczecie;
+  SET iterator = 0;
+  WHILE iterator < ilosc DO
 
-    # procedura do której wrzucam pracownika, czas, usluge i zwraca mi czy moge gdzieś wrzucic osobe i gdzie
-    call czy_jest_gdzie_wolne_miejsce(concat(data, ' ', czas_pomoc), pracownik_pomoc, id_uslugi, warunek, id_stanowiska);
+  # procedura do której wrzucam pracownika, czas, usluge i zwraca mi czy moge gdzieś wrzucic osobe i gdzie
+  CALL czy_jest_gdzie_wolne_miejsce(concat(data, ' ', czas_pomoc), pracownik_pomoc, id_uslugi, warunek, id_stanowiska);
 
-      if (warunek = true) then
-        insert into wynik (pracownik, godzina, stanowisko)
-        VALUES (pracownik_pomoc, czas_pomoc, id_stanowiska);
-      end if ;
+  IF (warunek = TRUE) THEN
+    INSERT INTO wynik (pracownik, godzina, stanowisko)
+    VALUES (pracownik_pomoc, czas_pomoc, id_stanowiska);
+  END IF ;
 
-      set czas_pomoc = addtime(czas_pomoc, '15:00');
-      set iterator = iterator = 1;
-    end while //
+  SET czas_pomoc = addtime(czas_pomoc, '15:00');
+  SET iterator = iterator = 1;
+  END WHILE;
 
 
-  fetch iterator into pracownik_pomoc;
-  end while ;
+  FETCH iterator INTO pracownik_pomoc;
+  END WHILE;
 
-  select * from wynik;
+  SELECT * FROM wynik;
 
-  drop temporary table if exists zabiegi_pomoc;
-  drop table if exists wynik;
+  DROP TEMPORARY TABLE IF EXISTS zabiegi_pomoc;
+  DROP TABLE IF EXISTS wynik;
 
-end //
-delimiter ;
+END //
+DELIMITER ;
 
 DROP PROCEDURE IF EXISTS doladowanie_konta;
 DELIMITER //
-CREATE PROCEDURE doladowanie_konta(IN PESEL char(11), IN kwota INT)
+CREATE PROCEDURE doladowanie_konta(IN PESEL CHAR(11), IN kwota INT)
 BEGIN
   UPDATE stan_konta SET saldo = saldo + kwota WHERE uzytkownik = PESEL;
 END//
 DELIMITER ;
+
+DROP PROCEDURE IF EXISTS zysk_w_ostatnich_dniach;
+DELIMITER //
+CREATE PROCEDURE zysk_w_ostatnich_dniach(IN ilosc_dni INT)
+BEGIN
+  DECLARE zysk INT DEFAULT 0;
+  DECLARE pesel_menagera CHAR(11);
+  DECLARE i INT DEFAULT 0; #iterator
+  DECLARE przychod INT DEFAULT 0;
+  DECLARE wydatki INT DEFAULT 0;
+  DECLARE data_obecna DATE DEFAULT current_date();
+
+  SELECT PESEL
+  FROM uzytkownicy
+  WHERE rola LIKE 'Prezes'
+    INTO pesel_menagera;
+
+  WHILE i <= ilosc_dni DO
+
+    SELECT sum(kwota)
+    FROM transakcje
+    WHERE odbiorca = pesel_menagera
+      AND data = date_sub(data_obecna, INTERVAL i DAY) INTO przychod;
+
+    SELECT sum(kwota)
+    FROM transakcje
+    WHERE placacy = pesel_menagera
+      AND data = date_sub(data_obecna, INTERVAL i DAY) INTO wydatki;
+
+    IF NOT ISNULL(przychod) THEN  #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
+      SET zysk = zysk + przychod;
+    END IF;
+    IF NOT ISNULL(wydatki) THEN  #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
+      SET zysk = zysk - wydatki;
+    END IF;
+
+    SET i = i + 1;
+  END WHILE;
+  SELECT zysk;
+END//
+DELIMITER ;
+#CALL zysk_w_ostatnich_dniach(10);
+
+DROP PROCEDURE IF EXISTS wyplac_pensje;
+DELIMITER //
+CREATE PROCEDURE wyplac_pensje()
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  DECLARE liczba_pracownikow INT DEFAULT 0;
+  DECLARE pensja_pracownika INT DEFAULT 0;
+  DECLARE budzet INT;
+  DECLARE pesel_menagera CHAR(11);
+  DECLARE pesel_pracownika CHAR(11);
+  SET liczba_pracownikow = (SELECT count(pracownik) FROM specjalizacje);
+
+  SELECT PESEL
+  FROM uzytkownicy
+  WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+  SELECT saldo
+  FROM stan_konta
+  WHERE uzytkownik = pesel_menagera INTO budzet;
+
+  SET autocommit = 0;
+  START TRANSACTION;
+    DROP TEMPORARY TABLE IF EXISTS T;
+    CREATE TEMPORARY TABLE T AS SELECT pensja, pracownik FROM specjalizacje;
+#todo czy potrzebna ta temporary table, czy chcemy wyplate np dla okreslonej specjalizacji, ew premia
+    w: WHILE i < liczba_pracownikow  DO #AND budzet - pensja_pracownika > 0
+      SET pensja_pracownika = (SELECT pensja FROM T LIMIT i,1);
+      SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
+      SET budzet = budzet - pensja_pracownika;
+      CALL doladowanie_konta(pesel_menagera, - pensja_pracownika);
+      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
+        (pesel_pracownika,pesel_menagera,current_date(),pensja_pracownika,'pensja');
+      SET i = i + 1;
+    END WHILE;
+
+    IF (budzet>0) THEN
+      SELECT "TAK";
+      COMMIT;
+    ELSE
+      SELECT "NIe";
+      ROLLBACK;
+    END IF;
+    DROP TEMPORARY TABLE T
+  ;
+END//
+DELIMITER ;
+CALL wyplac_pensje();
+#todo
+# ilosc obsluzonych pacjentow
+# sredni cena zabiegu
+# ktory najczesciej zabieg
+# pracownik miesiace
