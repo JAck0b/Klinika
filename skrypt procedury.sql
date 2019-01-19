@@ -206,15 +206,16 @@ DELIMITER ;
 
 DROP PROCEDURE IF EXISTS zysk_w_ostatnich_dniach;
 DELIMITER //
-CREATE PROCEDURE zysk_w_ostatnich_dniach(IN ilosc_dni INT)
+CREATE PROCEDURE zysk_w_ostatnich_dniach(IN data_poczatku DATE, IN data_konca date)
 BEGIN
   DECLARE zysk INT DEFAULT 0;
   DECLARE pesel_menagera CHAR(11);
   DECLARE i INT DEFAULT 0; #iterator
   DECLARE przychod INT DEFAULT 0;
   DECLARE wydatki INT DEFAULT 0;
-  DECLARE data_obecna DATE DEFAULT current_date();
+  DECLARE ilosc_dni INT DEFAULT 0;
 
+  SET ilosc_dni = datediff( data_konca, data_poczatku);
   SELECT PESEL
   FROM uzytkownicy
   WHERE rola LIKE 'Prezes'
@@ -225,12 +226,12 @@ BEGIN
     SELECT sum(kwota)
     FROM transakcje
     WHERE odbiorca = pesel_menagera
-      AND data = date_sub(data_obecna, INTERVAL i DAY) INTO przychod;
+      AND data = date_sub(data_konca, INTERVAL i DAY) INTO przychod;
 
     SELECT sum(kwota)
     FROM transakcje
     WHERE placacy = pesel_menagera
-      AND data = date_sub(data_obecna, INTERVAL i DAY) INTO wydatki;
+      AND data = date_sub(data_konca, INTERVAL i DAY) INTO wydatki;
 
     IF NOT ISNULL(przychod) THEN  #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
       SET zysk = zysk + przychod;
@@ -244,7 +245,7 @@ BEGIN
   SELECT zysk;
 END//
 DELIMITER ;
-#CALL zysk_w_ostatnich_dniach(10);
+#call zysk_w_ostatnich_dniach(date_sub(date(now()), INTERVAL 9 DAY), date(now()));
 
 DROP PROCEDURE IF EXISTS wyplac_pensje;
 DELIMITER //
@@ -270,8 +271,7 @@ BEGIN
   START TRANSACTION;
     DROP TEMPORARY TABLE IF EXISTS T;
     CREATE TEMPORARY TABLE T AS SELECT pensja, pracownik FROM specjalizacje;
-#todo czy potrzebna ta temporary table, czy chcemy wyplate np dla okreslonej specjalizacji, ew premia
-    w: WHILE i < liczba_pracownikow  DO #AND budzet - pensja_pracownika > 0
+    w: WHILE i < liczba_pracownikow  DO
       SET pensja_pracownika = (SELECT pensja FROM T LIMIT i,1);
       SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
       SET budzet = budzet - pensja_pracownika;
@@ -282,19 +282,88 @@ BEGIN
     END WHILE;
 
     IF (budzet>0) THEN
-      SELECT "TAK";
+      SELECT "Wyplaty zakonczone";
       COMMIT;
     ELSE
-      SELECT "NIe";
+      SELECT "Brak srodkow!";
       ROLLBACK;
     END IF;
     DROP TEMPORARY TABLE T
   ;
 END//
 DELIMITER ;
-CALL wyplac_pensje();
-#todo
-# ilosc obsluzonych pacjentow
-# sredni cena zabiegu
-# ktory najczesciej zabieg
-# pracownik miesiace
+#CALL wyplac_pensje();
+
+DROP PROCEDURE IF EXISTS wyplac_premie;
+DELIMITER //
+CREATE PROCEDURE wyplac_premie(IN liczba_pracownikow INT, IN kwota_premi INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  DECLARE budzet INT;
+  DECLARE pesel_menagera CHAR(11);
+  DECLARE pesel_pracownika CHAR(11);
+
+  SELECT PESEL
+  FROM uzytkownicy
+  WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+  SELECT saldo
+  FROM stan_konta
+  WHERE uzytkownik = pesel_menagera INTO budzet;
+
+  SET autocommit = 0;
+  START TRANSACTION;
+    DROP TEMPORARY TABLE IF EXISTS T;
+
+    #znajduje pracownika ktorzy wykoanli najwiecej zabiegow w tym miesiacu
+    # (w tabeli zabiegi jak zabieg jest dla większej liczby osboób występuje kilka kronie)
+    CREATE TEMPORARY TABLE T
+      AS SELECT x.pracownik, count(x.data_zabiegu) as pom FROM
+          (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) as x
+        GROUP BY x.pracownik ORDER BY pom DESC LIMIT liczba_pracownikow;
+
+    w: WHILE i < liczba_pracownikow  DO
+      SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
+      SET budzet = budzet - kwota_premi;
+      CALL doladowanie_konta(pesel_menagera, - kwota_premi);
+      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
+        (pesel_pracownika,pesel_menagera,current_date(),kwota_premi,'premia');
+      SET i = i + 1;
+    END WHILE;
+
+    IF (budzet>0) THEN
+      SELECT "Wyplaty zakonczone";
+      COMMIT;
+    ELSE
+      SELECT "Brak srodkow!";
+      ROLLBACK;
+    END IF;
+    DROP TEMPORARY TABLE T
+  ;
+END//
+DELIMITER ;
+#CALL wyplac_premie(1,1000);
+
+DROP PROCEDURE IF EXISTS pracownik_miesiaca;
+DELIMITER //
+CREATE PROCEDURE pracownik_miesiaca()
+BEGIN
+  SELECT x.pracownik as pracownik_miesiaca FROM
+    (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) as x
+  GROUP BY x.pracownik ORDER BY count(data_zabiegu) DESC LIMIT 1 ;
+
+END//
+DELIMITER ;
+#CALL pracownik_miesiaca()
+
+DROP PROCEDURE IF EXISTS najczestszy_zabieg;
+DELIMITER //
+CREATE PROCEDURE najczestszy_zabieg()
+BEGIN
+  SELECT nazwa as najczestszy_zabieg FROM
+    (SELECT DISTINCT usluga, data_zabiegu FROM zabiegi) as x JOIN uslugi_rehabilitacyjne ON x.usluga = uslugi_rehabilitacyjne.ID
+  GROUP BY x.usluga ORDER BY count(data_zabiegu) DESC LIMIT 1 ;
+
+END//
+DELIMITER ;
+CALL najczestszy_zabieg()
