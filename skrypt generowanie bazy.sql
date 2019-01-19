@@ -702,6 +702,9 @@ DELETE
 FROM transakcje
 WHERE TRUE;
 
+# ALTER TABLE konto_kliniki
+#   MODIFY stan_konta BIGINT NOT NULL;
+
 # założenie przy generowaniu - jest baaaardzo dużo klientów
 
 DROP PROCEDURE IF EXISTS uzupelnianie_zabiegow;
@@ -869,6 +872,7 @@ BEGIN
   OPEN kursor_pracownicy;
   FETCH kursor_pracownicy INTO obecny_pracownik;
   SET iterator_klientow = 0;
+  SET zmienna_pomoc = 0;
   WHILE koniec_pracownikow = FALSE DO
   SET wylosowane_stanowisko_id = -1;
   SET zmienna_pomoc = zmienna_pomoc + 1;
@@ -925,144 +929,145 @@ BEGIN
     # przechodzi po wszystkich sekwencjach i odpowiednio losuje
     WHILE warunek_petli = TRUE DO # przebieganie po godzinach według odpowiedniej sekwencji
 
-    # losowanie odpowiedniej usługi
-    SET wylosowana_usluga = round(rand() * 100);
+      # losowanie odpowiedniej usługi
+      SET wylosowana_usluga = round(rand() * 100);
 
-    SELECT count(uslugi_rehabilitacyjne.ID)
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
+      SELECT count(uslugi_rehabilitacyjne.ID)
+      FROM uslugi_rehabilitacyjne
+             JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+      WHERE uprawnienia.grupa = grupa_pracownika
+        AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
 
-    SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
+      SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
 
-    SELECT uslugi_rehabilitacyjne.ID
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika
-    LIMIT wylosowana_usluga, 1
-      INTO wylosowana_usluga_id;
+      SELECT uslugi_rehabilitacyjne.ID
+      FROM uslugi_rehabilitacyjne
+             JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+      WHERE uprawnienia.grupa = grupa_pracownika
+        AND uprawnienia.nazwa <= uprawnienia_pracownika
+      LIMIT wylosowana_usluga, 1
+        INTO wylosowana_usluga_id;
 
-    SET wylosowana_usluga_naleznosc = 0;
+      SET wylosowana_usluga_naleznosc = 0;
 
-    SELECT uslugi_rehabilitacyjne.cena
-    FROM uslugi_rehabilitacyjne
-    WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
-    LIMIT 1
-      INTO wylosowana_usluga_naleznosc;
+      SELECT uslugi_rehabilitacyjne.cena
+      FROM uslugi_rehabilitacyjne
+      WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
+      LIMIT 1
+        INTO wylosowana_usluga_naleznosc;
 
-    # w tym momencie mam pracownika, datę, stanowiko
-
-
-    SET iterator = 0;
-
-    WHILE iterator < ilosc_osob_na_stanowisko DO
-    SELECT PESEL
-    FROM klienci_tablica
-    LIMIT iterator_klientow, 1
-      INTO obecny_klient;
+      # w tym momencie mam pracownika, datę, stanowiko
 
 
-    # losowanie odpowiedniej usługi
-    SET wylosowana_usluga = round(rand() * 100);
+      SET iterator = 0;
 
-    SELECT count(uslugi_rehabilitacyjne.ID)
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
-
-    SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
-
-    SELECT uslugi_rehabilitacyjne.ID
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika
-    LIMIT wylosowana_usluga, 1
-      INTO wylosowana_usluga_id;
-
-    SET wylosowana_usluga_naleznosc = 0;
-
-    SELECT uslugi_rehabilitacyjne.cena
-    FROM uslugi_rehabilitacyjne
-    WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
-    LIMIT 1
-      INTO wylosowana_usluga_naleznosc;
-
-    # TODO usunąć to drugie dodawanie przy niesymetrycznym dodawaniu
-    # dodanie tych zabiegów dwa razy, rano i wieczorem
-    INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-    VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id,
-            wylosowane_stanowisko_id);
+      WHILE iterator < ilosc_osob_na_stanowisko DO
+        SELECT PESEL
+        FROM klienci_tablica
+        LIMIT iterator_klientow, 1
+          INTO obecny_klient;
 
 
-    IF iterator_dni < date(now()) THEN
-      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
-      VALUES (pesel_menagera, obecny_klient, iterator_dni, wylosowana_usluga_naleznosc, 'za_zabieg');
+        # losowanie odpowiedniej usługi
+        SET wylosowana_usluga = round(rand() * 100);
 
-      SET calkowita_kwota_za_zabiegi = calkowita_kwota_za_zabiegi + wylosowana_usluga_naleznosc;
-    END IF ;
+        SELECT count(uslugi_rehabilitacyjne.ID)
+        FROM uslugi_rehabilitacyjne
+               JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+          AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
+
+        SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
+
+        SELECT uslugi_rehabilitacyjne.ID
+        FROM uslugi_rehabilitacyjne
+               JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+          AND uprawnienia.nazwa <= uprawnienia_pracownika
+        LIMIT wylosowana_usluga, 1
+          INTO wylosowana_usluga_id;
+
+        SET wylosowana_usluga_naleznosc = 0;
+
+        SELECT uslugi_rehabilitacyjne.cena
+        FROM uslugi_rehabilitacyjne
+        WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
+        LIMIT 1
+          INTO wylosowana_usluga_naleznosc;
+
+        # TODO usunąć to drugie dodawanie przy niesymetrycznym dodawaniu
+        # dodanie tych zabiegów dwa razy, rano i wieczorem
+        INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
+        VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id,
+                wylosowane_stanowisko_id);
 
 
-    # losowanie odpowiedniej usługi
-    SET wylosowana_usluga = round(rand() * 100);
+        IF iterator_dni < date(now()) THEN
+          INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+          VALUES (pesel_menagera, obecny_klient, iterator_dni, wylosowana_usluga_naleznosc, 'za_zabieg');
 
-    SELECT count(uslugi_rehabilitacyjne.ID)
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
+          SET calkowita_kwota_za_zabiegi = calkowita_kwota_za_zabiegi + wylosowana_usluga_naleznosc;
+        END IF ;
 
-    SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
 
-    SELECT uslugi_rehabilitacyjne.ID
-    FROM uslugi_rehabilitacyjne
-           JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-    WHERE uprawnienia.grupa = grupa_pracownika
-      AND uprawnienia.nazwa <= uprawnienia_pracownika
-    LIMIT wylosowana_usluga, 1
-      INTO wylosowana_usluga_id;
 
-    SET wylosowana_usluga_naleznosc = 0;
+        # losowanie odpowiedniej usługi
+        SET wylosowana_usluga = round(rand() * 100);
 
-    SELECT uslugi_rehabilitacyjne.cena
-    FROM uslugi_rehabilitacyjne
-    WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
-    LIMIT 1
-      INTO wylosowana_usluga_naleznosc;
+        SELECT count(uslugi_rehabilitacyjne.ID)
+        FROM uslugi_rehabilitacyjne
+               JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+          AND uprawnienia.nazwa <= uprawnienia_pracownika INTO ilosc_pasujacych_uslug;
 
-    INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-    VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', addtime(iterator_godziny, '04:00:00')),
-            wylosowana_usluga_id, wylosowane_stanowisko_id);
+        SET wylosowana_usluga = MOD(wylosowana_usluga, ilosc_pasujacych_uslug);
 
-    IF iterator_dni < date(now()) THEN
-      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
-      VALUES (pesel_menagera, obecny_klient, iterator_dni, wylosowana_usluga_naleznosc, 'za_zabieg');
-      SET calkowita_kwota_za_zabiegi = calkowita_kwota_za_zabiegi + wylosowana_usluga_naleznosc;
-    END IF ;
+        SELECT uslugi_rehabilitacyjne.ID
+        FROM uslugi_rehabilitacyjne
+               JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+        WHERE uprawnienia.grupa = grupa_pracownika
+          AND uprawnienia.nazwa <= uprawnienia_pracownika
+        LIMIT wylosowana_usluga, 1
+          INTO wylosowana_usluga_id;
 
-    SET iterator = iterator + 1;
-    SET iterator_klientow = iterator_klientow + 1;
-    END WHILE ;
+        SET wylosowana_usluga_naleznosc = 0;
 
-    SELECT czas # wyliczanie kiedy bedzie nastepny zabieg
-    FROM sekwencja_dodawania
-    WHERE pora_dnia <> 2
-      AND nazwa LIKE wylosowane_stanowisko_nazwa
-    ORDER BY ID
-    LIMIT iterator_sekwencji, 1
-      INTO pomoc_godziny;
+        SELECT uslugi_rehabilitacyjne.cena
+        FROM uslugi_rehabilitacyjne
+        WHERE uslugi_rehabilitacyjne.ID = wylosowana_usluga_id
+        LIMIT 1
+          INTO wylosowana_usluga_naleznosc;
 
-    SET iterator_godziny = addtime(iterator_godziny, pomoc_godziny);
-    SET iterator_sekwencji = iterator_sekwencji + 1;
+        INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
+        VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', addtime(iterator_godziny, '04:00:00')),
+                wylosowana_usluga_id, wylosowane_stanowisko_id);
 
-    IF iterator_sekwencji = dlugosc_sekwencji THEN
+        IF iterator_dni < date(now()) THEN
+          INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+          VALUES (pesel_menagera, obecny_klient, iterator_dni, wylosowana_usluga_naleznosc, 'za_zabieg');
+          SET calkowita_kwota_za_zabiegi = calkowita_kwota_za_zabiegi + wylosowana_usluga_naleznosc;
+        END IF ;
 
-      SET warunek_petli = FALSE;
+        SET iterator = iterator + 1;
+        SET iterator_klientow = iterator_klientow + 1;
+      END WHILE ;
 
-    END IF ;
+      SELECT czas # wyliczanie kiedy bedzie nastepny zabieg
+      FROM sekwencja_dodawania
+      WHERE pora_dnia <> 2
+        AND nazwa LIKE wylosowane_stanowisko_nazwa
+      ORDER BY ID
+      LIMIT iterator_sekwencji, 1
+        INTO pomoc_godziny;
+
+      SET iterator_godziny = addtime(iterator_godziny, pomoc_godziny);
+      SET iterator_sekwencji = iterator_sekwencji + 1;
+
+      IF iterator_sekwencji = dlugosc_sekwencji THEN
+
+        SET warunek_petli = FALSE;
+
+      END IF ;
     END WHILE;
 
   END IF ;
@@ -1203,11 +1208,12 @@ BEGIN
   #     END WHILE ;
   #     CLOSE kursor_pracownicy;
 
-
+  SELECT zmienna_pomoc;
   SET iterator_dni = ADDDATE(iterator_dni, INTERVAL 1 DAY);
   END WHILE;
 
-  SELECT zmienna_pomoc;
+#  SELECT zmienna_pomoc;
+#TODO POTRZEBUJE PESEL MENAGERA
   UPDATE stan_konta
   SET stan_konta.saldo = calkowita_kwota_za_zabiegi
   WHERE uzytkownik = pesel_menagera;
