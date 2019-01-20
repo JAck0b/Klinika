@@ -281,15 +281,14 @@ BEGIN
       SET i = i + 1;
     END WHILE;
 
-    IF (budzet>0) THEN
+    IF (budzet >= 0) THEN
       SELECT "Wyplaty zakonczone";
       COMMIT;
     ELSE
       SELECT "Brak srodkow!";
       ROLLBACK;
     END IF;
-    DROP TEMPORARY TABLE T
-  ;
+    DROP TEMPORARY TABLE T;
 END//
 DELIMITER ;
 #CALL wyplac_pensje();
@@ -331,15 +330,14 @@ BEGIN
       SET i = i + 1;
     END WHILE;
 
-    IF (budzet>0) THEN
+    IF (budzet >= 0) THEN
       SELECT "Wyplaty zakonczone";
       COMMIT;
     ELSE
       SELECT "Brak srodkow!";
       ROLLBACK;
     END IF;
-    DROP TEMPORARY TABLE T
-  ;
+    DROP TEMPORARY TABLE T;
 END//
 DELIMITER ;
 #CALL wyplac_premie(1,1000);
@@ -366,4 +364,57 @@ BEGIN
 
 END//
 DELIMITER ;
-CALL najczestszy_zabieg()
+#CALL najczestszy_zabieg();
+
+DROP PROCEDURE IF EXISTS zaplata_za_zabieg;
+DELIMITER //
+CREATE PROCEDURE zaplata_za_zabieg(IN pesel_klienta  CHAR(11), IN id_zabiegu INT)
+BEGIN
+  DECLARE stan_konta_klienta INT;
+  DECLARE pesel_menagera CHAR(11);
+  DECLARE rodzaj_uslugi INT;
+  DECLARE cena_zabiegu INT;
+  DECLARE stan ENUM ('tak','nie');
+
+  SELECT PESEL
+  FROM uzytkownicy
+  WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+  SELECT usluga,oplacono
+  FROM zabiegi
+  WHERE ID = id_zabiegu AND klient = pesel_klienta INTO rodzaj_uslugi, stan;
+
+  SELECT saldo
+  FROM stan_konta
+  WHERE uzytkownik = pesel_klienta INTO stan_konta_klienta;
+
+  SELECT cena
+  FROM uslugi_rehabilitacyjne
+  WHERE ID = rodzaj_uslugi INTO cena_zabiegu;
+
+  IF (stan = 'nie') THEN
+    SET autocommit = 0;
+    START TRANSACTION;
+
+    SET stan_konta_klienta = stan_konta_klienta - cena_zabiegu;
+    CALL doladowanie_konta(pesel_menagera, cena_zabiegu);
+    CALL doladowanie_konta(pesel_klienta, -cena_zabiegu);
+    INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
+    (pesel_menagera,pesel_klienta,current_date(),cena_zabiegu,'za_zabieg');
+    UPDATE zabiegi SET oplacono = 'tak' WHERE ID = id_zabiegu;
+
+    IF (stan_konta_klienta >= 0) THEN
+      SELECT "Zaplacono";
+      COMMIT;
+    ELSE
+      SELECT "Brak srodkow!";
+      ROLLBACK;
+    END IF;
+  ELSE
+    SELECT "Juz oplacono";
+  END IF;
+
+
+END//
+DELIMITER ;
+#CALL zaplata_za_zabieg('00211898694','9829');
