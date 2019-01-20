@@ -85,7 +85,8 @@ CREATE TABLE zabiegi
     FOREIGN KEY (stanowisko)
       REFERENCES stanowiska (ID)
       ON UPDATE NO ACTION
-      ON DELETE NO ACTION
+      ON DELETE NO ACTION,
+  oplacono ENUM ('tak', 'nie') NOT NULL
 
 );
 
@@ -551,7 +552,7 @@ BEGIN
   WHILE i < ilosc DO #petla po ilosci
   SET j = 1;
   SET data = DATE_SUB(mindata, INTERVAL rozmedaty DAY);
-  SET tesamedaty = FLOOR(RAND() * 200 + 1);
+  SET tesamedaty = FLOOR(RAND() * 400 + 1);
   WHILE j < tesamedaty AND i < ilosc DO #petla po urodzonych w tym samym dniu
   SET peselbezkontrolnej = CONCAT(
       SUBSTRING(YEAR(data), 3, 2),
@@ -682,7 +683,7 @@ BEGIN
   SET i = i + 1;
   SET j = j + 1;
   END WHILE;
-  SET rozmedaty = rozmedaty + zmienna_losowa_1 % 200 + 1;
+  SET rozmedaty = rozmedaty + zmienna_losowa_1 % 150 + 1;
   END WHILE;
 END//
 DELIMITER ;
@@ -1001,11 +1002,20 @@ BEGIN
     LIMIT 1
       INTO wylosowana_usluga_naleznosc;
 
+
     # TODO usunąć to drugie dodawanie przy niesymetrycznym dodawaniu
     # dodanie tych zabiegów dwa razy, rano i wieczorem
-    INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-    VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id,
-            wylosowane_stanowisko_id);
+
+    IF iterator_dni < date(now()) THEN
+      INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko, oplacono)
+      VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id,
+              wylosowane_stanowisko_id, 'tak');
+    ELSE
+
+      INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko, oplacono)
+      VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', iterator_godziny), wylosowana_usluga_id,
+              wylosowane_stanowisko_id, 'nie');
+    END IF ;
 #
 #           INSERT INTO pomoc (pesel)
 #     VALUES (obecny_pracownik);
@@ -1045,9 +1055,15 @@ BEGIN
     LIMIT 1
       INTO wylosowana_usluga_naleznosc;
 
-    INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko)
-    VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', addtime(iterator_godziny, '04:00:00')),
-            wylosowana_usluga_id, wylosowane_stanowisko_id);
+    IF iterator_dni < date(now()) THEN
+      INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko,oplacono)
+      VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', addtime(iterator_godziny, '04:00:00')),
+              wylosowana_usluga_id, wylosowane_stanowisko_id,'tak');
+    ELSE
+      INSERT INTO zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko,oplacono)
+      VALUES (obecny_klient, obecny_pracownik, concat(iterator_dni, ' ', addtime(iterator_godziny, '04:00:00')),
+              wylosowana_usluga_id, wylosowane_stanowisko_id,'nie');
+    END IF ;
 
     IF iterator_dni < date(now()) THEN
       INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
@@ -1222,7 +1238,7 @@ BEGIN
   #  SELECT zmienna_pomoc;
   #TODO POTRZEBUJE PESEL MENAGERA
   UPDATE stan_konta
-  SET stan_konta.saldo = calkowita_kwota_za_zabiegi
+  SET stan_konta.saldo = stan_konta.saldo + calkowita_kwota_za_zabiegi
   WHERE uzytkownik = pesel_menagera;
 
   DROP TABLE IF EXISTS stanowiska_pomoc;
@@ -1234,6 +1250,6 @@ DELIMITER ;
 
 CALL dodaj_stanowiska();
 CALL uzupelnianie_dostep_do_stanowiska();
-CALL dodaj_uzytkownika_i_stan_konta(500, 10);
-#CALL dodaj_uzytkownika_i_stan_konta(20000, 2000);
-CALL uzupelnianie_zabiegow(date_sub(date(now()), INTERVAL 10 DAY), date(now()));
+#CALL dodaj_uzytkownika_i_stan_konta(500, 10);
+CALL dodaj_uzytkownika_i_stan_konta(50000, 2000);
+CALL uzupelnianie_zabiegow(date_sub(date(now()), INTERVAL 2 DAY), date_add(date(now()), INTERVAL 3 DAY));
