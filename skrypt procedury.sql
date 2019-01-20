@@ -482,3 +482,44 @@ END//
 DELIMITER ;
 #CALL dodaj_uprawnienia_do_istniejacego_stanowiska(296, 'Lasery B');
 
+DROP PROCEDURE IF EXISTS dodaj_nowego_pracownika;
+DELIMITER //
+CREATE PROCEDURE dodaj_nowego_pracownika(IN pesel_pracownika CHAR(11),IN imie_pracownika VARCHAR(30), IN  nazwisko_pracownika VARCHAR(30), uprawnienia_pracownika VARCHAR(45), IN pensja_pracownika INT)
+BEGIN
+
+  IF uprawnienia_pracownika  IN (SELECT nazwa FROM uprawnienia) THEN
+
+    INSERT INTO uzytkownicy (PESEL, imie, nazwisko, data_dolaczenia, rola)
+    VALUES (pesel_pracownika, imie_pracownika,nazwisko_pracownika, current_date(), 'pracownik');
+
+    INSERT INTO specjalizacje (pracownik, uprawnienia, pensja)
+    VALUES (pesel_pracownika,uprawnienia_pracownika,pensja_pracownika);
+
+    SELECT "Dodano";
+  ELSE
+    SELECT "Bledne uprawnienia";
+
+  END IF;
+
+END//
+DELIMITER ;
+#CALL dodaj_nowego_pracownika('11111111111', 'test','test','Lasery A', 12345);
+
+DROP PROCEDURE IF EXISTS dodaj_nowego_klienta;
+DELIMITER //
+CREATE PROCEDURE dodaj_nowego_klienta(IN pesel_klienta CHAR(11),IN imie_klienta VARCHAR(30), IN  nazwisko_klienta VARCHAR(30), IN kwota_na_koncie_klienta INT)
+BEGIN
+
+    INSERT INTO uzytkownicy (PESEL, imie, nazwisko, data_dolaczenia, rola)
+    VALUES (pesel_klienta, imie_klienta,nazwisko_klienta, current_date(), 'klient');
+
+    INSERT INTO stan_konta (uzytkownik, saldo)
+    VALUES (pesel_klienta, kwota_na_koncie_klienta);
+
+    SELECT "Dodano";
+
+END//
+DELIMITER ;
+#CALL dodaj_nowego_klienta('11111111119', 'test','test', 12345);
+
+
