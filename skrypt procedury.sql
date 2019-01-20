@@ -215,32 +215,30 @@ BEGIN
   DECLARE wydatki INT DEFAULT 0;
   DECLARE ilosc_dni INT DEFAULT 0;
 
-  SET ilosc_dni = datediff( data_konca, data_poczatku);
+  SET ilosc_dni = datediff(data_konca, data_poczatku);
   SELECT PESEL
   FROM uzytkownicy
-  WHERE rola LIKE 'Prezes'
-    INTO pesel_menagera;
+  WHERE rola LIKE 'Prezes' INTO pesel_menagera;
 
   WHILE i <= ilosc_dni DO
+  SELECT sum(kwota)
+  FROM transakcje
+  WHERE odbiorca = pesel_menagera
+    AND data = date_sub(data_konca, INTERVAL i DAY) INTO przychod;
 
-    SELECT sum(kwota)
-    FROM transakcje
-    WHERE odbiorca = pesel_menagera
-      AND data = date_sub(data_konca, INTERVAL i DAY) INTO przychod;
+  SELECT sum(kwota)
+  FROM transakcje
+  WHERE placacy = pesel_menagera
+    AND data = date_sub(data_konca, INTERVAL i DAY) INTO wydatki;
 
-    SELECT sum(kwota)
-    FROM transakcje
-    WHERE placacy = pesel_menagera
-      AND data = date_sub(data_konca, INTERVAL i DAY) INTO wydatki;
+  IF NOT ISNULL(przychod) THEN #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
+    SET zysk = zysk + przychod;
+  END IF;
+  IF NOT ISNULL(wydatki) THEN #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
+    SET zysk = zysk - wydatki;
+  END IF;
 
-    IF NOT ISNULL(przychod) THEN  #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
-      SET zysk = zysk + przychod;
-    END IF;
-    IF NOT ISNULL(wydatki) THEN  #w danzm dniu moe nie bz transkacji wtedy null wsyztkow psuje
-      SET zysk = zysk - wydatki;
-    END IF;
-
-    SET i = i + 1;
+  SET i = i + 1;
   END WHILE;
   SELECT zysk;
 END//
@@ -268,17 +266,19 @@ BEGIN
   WHERE uzytkownik = pesel_menagera INTO budzet;
 
   SET autocommit = 0;
-  START TRANSACTION;
+  START TRANSACTION
+    ;
     DROP TEMPORARY TABLE IF EXISTS T;
-    CREATE TEMPORARY TABLE T AS SELECT pensja, pracownik FROM specjalizacje;
-    w: WHILE i < liczba_pracownikow  DO
-      SET pensja_pracownika = (SELECT pensja FROM T LIMIT i,1);
-      SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
-      SET budzet = budzet - pensja_pracownika;
-      CALL doladowanie_konta(pesel_menagera, - pensja_pracownika);
-      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
-        (pesel_pracownika,pesel_menagera,current_date(),pensja_pracownika,'pensja');
-      SET i = i + 1;
+    CREATE TEMPORARY TABLE T AS
+    SELECT pensja, pracownik FROM specjalizacje;
+    w: WHILE i < liczba_pracownikow DO
+    SET pensja_pracownika = (SELECT pensja FROM T LIMIT i,1);
+    SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
+    SET budzet = budzet - pensja_pracownika;
+    CALL doladowanie_konta(pesel_menagera, - pensja_pracownika);
+    INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+    VALUES (pesel_pracownika, pesel_menagera, current_date(), pensja_pracownika, 'pensja');
+    SET i = i + 1;
     END WHILE;
 
     IF (budzet >= 0) THEN
@@ -288,7 +288,8 @@ BEGIN
       SELECT "Brak srodkow!";
       ROLLBACK;
     END IF;
-    DROP TEMPORARY TABLE T;
+    DROP TEMPORARY TABLE T
+  ;
 END//
 DELIMITER ;
 #CALL wyplac_pensje();
@@ -311,23 +312,27 @@ BEGIN
   WHERE uzytkownik = pesel_menagera INTO budzet;
 
   SET autocommit = 0;
-  START TRANSACTION;
+  START TRANSACTION
+    ;
     DROP TEMPORARY TABLE IF EXISTS T;
 
     #znajduje pracownika ktorzy wykoanli najwiecej zabiegow w tym miesiacu
     # (w tabeli zabiegi jak zabieg jest dla większej liczby osboób występuje kilka kronie)
     CREATE TEMPORARY TABLE T
-      AS SELECT x.pracownik, count(x.data_zabiegu) as pom FROM
-          (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) as x
-        GROUP BY x.pracownik ORDER BY pom DESC LIMIT liczba_pracownikow;
+    AS
+    SELECT x.pracownik, count(x.data_zabiegu) AS pom
+    FROM (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) AS x
+    GROUP BY x.pracownik
+    ORDER BY pom DESC
+    LIMIT liczba_pracownikow;
 
-    w: WHILE i < liczba_pracownikow  DO
-      SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
-      SET budzet = budzet - kwota_premi;
-      CALL doladowanie_konta(pesel_menagera, - kwota_premi);
-      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
-        (pesel_pracownika,pesel_menagera,current_date(),kwota_premi,'premia');
-      SET i = i + 1;
+    w: WHILE i < liczba_pracownikow DO
+    SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
+    SET budzet = budzet - kwota_premi;
+    CALL doladowanie_konta(pesel_menagera, - kwota_premi);
+    INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+    VALUES (pesel_pracownika, pesel_menagera, current_date(), kwota_premi, 'premia');
+    SET i = i + 1;
     END WHILE;
 
     IF (budzet >= 0) THEN
@@ -337,7 +342,8 @@ BEGIN
       SELECT "Brak srodkow!";
       ROLLBACK;
     END IF;
-    DROP TEMPORARY TABLE T;
+    DROP TEMPORARY TABLE T
+  ;
 END//
 DELIMITER ;
 #CALL wyplac_premie(1,1000);
@@ -346,9 +352,11 @@ DROP PROCEDURE IF EXISTS pracownik_miesiaca;
 DELIMITER //
 CREATE PROCEDURE pracownik_miesiaca()
 BEGIN
-  SELECT x.pracownik as pracownik_miesiaca FROM
-    (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) as x
-  GROUP BY x.pracownik ORDER BY count(data_zabiegu) DESC LIMIT 1 ;
+  SELECT x.pracownik AS pracownik_miesiaca
+  FROM (SELECT DISTINCT pracownik, data_zabiegu FROM zabiegi WHERE month(data_zabiegu) = month(current_date())) AS x
+  GROUP BY x.pracownik
+  ORDER BY count(data_zabiegu) DESC
+  LIMIT 1;
 
 END//
 DELIMITER ;
@@ -358,9 +366,12 @@ DROP PROCEDURE IF EXISTS najczestszy_zabieg;
 DELIMITER //
 CREATE PROCEDURE najczestszy_zabieg()
 BEGIN
-  SELECT nazwa as najczestszy_zabieg FROM
-    (SELECT DISTINCT usluga, data_zabiegu FROM zabiegi) as x JOIN uslugi_rehabilitacyjne ON x.usluga = uslugi_rehabilitacyjne.ID
-  GROUP BY x.usluga ORDER BY count(data_zabiegu) DESC LIMIT 1 ;
+  SELECT nazwa AS najczestszy_zabieg
+  FROM (SELECT DISTINCT usluga, data_zabiegu FROM zabiegi) AS x
+         JOIN uslugi_rehabilitacyjne ON x.usluga = uslugi_rehabilitacyjne.ID
+  GROUP BY x.usluga
+  ORDER BY count(data_zabiegu) DESC
+  LIMIT 1;
 
 END//
 DELIMITER ;
@@ -368,7 +379,7 @@ DELIMITER ;
 
 DROP PROCEDURE IF EXISTS zaplata_za_zabieg;
 DELIMITER //
-CREATE PROCEDURE zaplata_za_zabieg(IN pesel_klienta  CHAR(11), IN id_zabiegu INT)
+CREATE PROCEDURE zaplata_za_zabieg(IN pesel_klienta CHAR(11), IN id_zabiegu INT)
 BEGIN
   DECLARE stan_konta_klienta INT;
   DECLARE pesel_menagera CHAR(11);
@@ -382,7 +393,8 @@ BEGIN
 
   SELECT usluga,oplacono
   FROM zabiegi
-  WHERE ID = id_zabiegu AND klient = pesel_klienta INTO rodzaj_uslugi, stan;
+  WHERE ID = id_zabiegu
+    AND klient = pesel_klienta INTO rodzaj_uslugi, stan;
 
   SELECT saldo
   FROM stan_konta
@@ -394,22 +406,24 @@ BEGIN
 
   IF (stan = 'nie') THEN
     SET autocommit = 0;
-    START TRANSACTION;
+    START TRANSACTION
+      ;
 
-    SET stan_konta_klienta = stan_konta_klienta - cena_zabiegu;
-    CALL doladowanie_konta(pesel_menagera, cena_zabiegu);
-    CALL doladowanie_konta(pesel_klienta, -cena_zabiegu);
-    INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis) VALUES
-    (pesel_menagera,pesel_klienta,current_date(),cena_zabiegu,'za_zabieg');
-    UPDATE zabiegi SET oplacono = 'tak' WHERE ID = id_zabiegu;
+      SET stan_konta_klienta = stan_konta_klienta - cena_zabiegu;
+      CALL doladowanie_konta(pesel_menagera, cena_zabiegu);
+      CALL doladowanie_konta(pesel_klienta, -cena_zabiegu);
+      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+      VALUES (pesel_menagera, pesel_klienta, current_date(), cena_zabiegu, 'za_zabieg');
+      UPDATE zabiegi SET oplacono = 'tak' WHERE ID = id_zabiegu;
 
-    IF (stan_konta_klienta >= 0) THEN
-      SELECT "Zaplacono";
-      COMMIT;
-    ELSE
-      SELECT "Brak srodkow!";
-      ROLLBACK;
-    END IF;
+      IF (stan_konta_klienta >= 0) THEN
+        SELECT "Zaplacono";
+        COMMIT;
+      ELSE
+        SELECT "Brak srodkow!";
+        ROLLBACK;
+      END IF
+    ;
   ELSE
     SELECT "Juz oplacono";
   END IF;
@@ -418,3 +432,53 @@ BEGIN
 END//
 DELIMITER ;
 #CALL zaplata_za_zabieg('00211898694','9829');
+
+DROP PROCEDURE IF EXISTS dodaj_nowe_stanowisko;
+DELIMITER //
+CREATE PROCEDURE dodaj_nowe_stanowisko(IN nazwa_stanowiska VARCHAR(45), IN max_liczba_osob_na_stanowisku INT,
+                                       wymagane_uprawnienia_na_dane_stanowisko VARCHAR(45))
+BEGIN
+  DECLARE ilosc_stanowik INT;
+
+  SELECT count(ID)
+  FROM stanowiska INTO ilosc_stanowik;
+
+  IF wymagane_uprawnienia_na_dane_stanowisko IN (SELECT nazwa FROM uprawnienia) THEN
+    INSERT INTO stanowiska (ID, nazwa, max_ilosc_osob)
+    VALUES (ilosc_stanowik + 1, nazwa_stanowiska, max_liczba_osob_na_stanowisku);
+
+    INSERT INTO dostep_do_stanowiska (stanowisko, wymagane_uprawnienia)
+    VALUES (ilosc_stanowik + 1, wymagane_uprawnienia_na_dane_stanowisko);
+
+    SELECT "Dodano";
+  ELSE
+    SELECT "Bledne uprawnienia";
+
+  END IF;
+
+END//
+DELIMITER ;
+#CALL dodaj_nowe_stanowisko('xd', 1, 'Lasery A');
+
+DROP PROCEDURE IF EXISTS dodaj_uprawnienia_do_istniejacego_stanowiska;
+DELIMITER //
+CREATE PROCEDURE dodaj_uprawnienia_do_istniejacego_stanowiska(IN ID_stanowiska INT,
+                                                              wymagane_uprawnienia_na_dane_stanowisko VARCHAR(45))
+BEGIN
+
+  IF wymagane_uprawnienia_na_dane_stanowisko IN (SELECT nazwa FROM uprawnienia) AND
+     ID_stanowiska IN (SELECT stanowisko FROM dostep_do_stanowiska) THEN
+
+    INSERT INTO dostep_do_stanowiska (stanowisko, wymagane_uprawnienia)
+    VALUES (ID_stanowiska, wymagane_uprawnienia_na_dane_stanowisko);
+
+    SELECT "Dodano";
+  ELSE
+    SELECT "Bledne uprawnienia lub stanowisko";
+
+  END IF;
+
+END//
+DELIMITER ;
+#CALL dodaj_uprawnienia_do_istniejacego_stanowiska(296, 'Lasery B');
+
