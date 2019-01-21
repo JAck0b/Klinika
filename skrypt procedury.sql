@@ -243,7 +243,7 @@ BEGIN
   SELECT zysk;
 END//
 DELIMITER ;
-#call zysk_w_ostatnich_dniach(date_sub(date(now()), INTERVAL 9 DAY), date(now()));
+
 
 DROP PROCEDURE IF EXISTS wyplac_pensje;
 DELIMITER //
@@ -271,7 +271,7 @@ BEGIN
     DROP TEMPORARY TABLE IF EXISTS T;
     CREATE TEMPORARY TABLE T AS
     SELECT pensja, pracownik FROM specjalizacje;
-    w: WHILE i < liczba_pracownikow DO
+    WHILE i < liczba_pracownikow DO
     SET pensja_pracownika = (SELECT pensja FROM T LIMIT i,1);
     SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
     SET budzet = budzet - pensja_pracownika;
@@ -282,17 +282,16 @@ BEGIN
     END WHILE;
 
     IF (budzet >= 0) THEN
-      SELECT "Wyplaty zakonczone";
       COMMIT;
+      SELECT "Wyplaty zakonczone";
     ELSE
-      SELECT "Brak srodkow!";
       ROLLBACK;
+      SELECT "Brak srodkow!";
     END IF;
     DROP TEMPORARY TABLE T
   ;
 END//
 DELIMITER ;
-#CALL wyplac_pensje();
 
 DROP PROCEDURE IF EXISTS wyplac_premie;
 DELIMITER //
@@ -326,7 +325,7 @@ BEGIN
     ORDER BY pom DESC
     LIMIT liczba_pracownikow;
 
-    w: WHILE i < liczba_pracownikow DO
+    WHILE i < liczba_pracownikow DO
     SET pesel_pracownika = (SELECT pracownik FROM T LIMIT i,1);
     SET budzet = budzet - kwota_premi;
     CALL doladowanie_konta(pesel_menagera, - kwota_premi);
@@ -336,17 +335,16 @@ BEGIN
     END WHILE;
 
     IF (budzet >= 0) THEN
-      SELECT "Wyplaty zakonczone";
       COMMIT;
+      SELECT "Wyplaty zakonczone";
     ELSE
-      SELECT "Brak srodkow!";
       ROLLBACK;
+      SELECT "Brak srodkow!";
     END IF;
     DROP TEMPORARY TABLE T
   ;
 END//
 DELIMITER ;
-#CALL wyplac_premie(1,1000);
 
 DROP PROCEDURE IF EXISTS pracownik_miesiaca;
 DELIMITER //
@@ -360,7 +358,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL pracownik_miesiaca()
 
 DROP PROCEDURE IF EXISTS najczestszy_zabieg;
 DELIMITER //
@@ -375,7 +372,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL najczestszy_zabieg();
 
 DROP PROCEDURE IF EXISTS zaplata_za_zabieg;
 DELIMITER //
@@ -406,24 +402,22 @@ BEGIN
 
   IF (stan = 'nie') THEN
     SET autocommit = 0;
-    START TRANSACTION
-      ;
+    START TRANSACTION;
 
-      SET stan_konta_klienta = stan_konta_klienta - cena_zabiegu;
-      CALL doladowanie_konta(pesel_menagera, cena_zabiegu);
-      CALL doladowanie_konta(pesel_klienta, -cena_zabiegu);
-      INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
-      VALUES (pesel_menagera, pesel_klienta, current_date(), cena_zabiegu, 'za_zabieg');
-      UPDATE zabiegi SET oplacono = 'tak' WHERE ID = id_zabiegu;
+    SET stan_konta_klienta = stan_konta_klienta - cena_zabiegu;
+    CALL doladowanie_konta(pesel_menagera, cena_zabiegu);
+    CALL doladowanie_konta(pesel_klienta, -cena_zabiegu);
+    INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+    VALUES (pesel_menagera, pesel_klienta, current_date(), cena_zabiegu, 'za_zabieg');
+    UPDATE zabiegi SET oplacono = 'tak' WHERE ID = id_zabiegu;
 
-      IF (stan_konta_klienta >= 0) THEN
-        SELECT "Zaplacono";
-        COMMIT;
-      ELSE
-        SELECT "Brak srodkow!";
-        ROLLBACK;
-      END IF
-    ;
+    IF (stan_konta_klienta >= 0) THEN
+      SELECT "Zaplacono";
+      COMMIT;
+    ELSE
+      ROLLBACK;
+      SELECT "Brak srodkow!";
+    END IF;
   ELSE
     SELECT "Juz oplacono";
   END IF;
@@ -431,7 +425,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL zaplata_za_zabieg('00211898694','9829');
 
 DROP PROCEDURE IF EXISTS dodaj_nowe_stanowisko;
 DELIMITER //
@@ -458,7 +451,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL dodaj_nowe_stanowisko('xd', 1, 'Lasery A');
 
 DROP PROCEDURE IF EXISTS dodaj_uprawnienia_do_istniejacego_stanowiska;
 DELIMITER //
@@ -480,7 +472,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL dodaj_uprawnienia_do_istniejacego_stanowiska(296, 'Lasery B');
 
 DROP PROCEDURE IF EXISTS dodaj_nowego_pracownika;
 DELIMITER //
@@ -503,7 +494,6 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL dodaj_nowego_pracownika('11111111111', 'test','test','Lasery A', 12345);
 
 DROP PROCEDURE IF EXISTS dodaj_nowego_klienta;
 DELIMITER //
@@ -520,6 +510,236 @@ BEGIN
 
 END//
 DELIMITER ;
-#CALL dodaj_nowego_klienta('11111111119', 'test','test', 12345);
 
+DROP PROCEDURE IF EXISTS usun_zabieg;
+DELIMITER //
+CREATE PROCEDURE usun_zabieg(IN id_zabiegu INT)
+BEGIN
+    DECLARE pesel_menagera CHAR(11);
+    DECLARE pesel_klienta CHAR (11);
+    DECLARE saldo_kliniki INT;
+    DECLARE rodzaj_uslugi INT;
+    DECLARE cena_zabiegu INT;
+    DECLARE stan ENUM ('tak','nie');
+
+    SELECT PESEL
+    FROM uzytkownicy
+    WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+    IF id_zabiegu IN (SELECT ID FROM zabiegi) THEN
+      SELECT usluga,oplacono,klient
+      FROM zabiegi
+      WHERE ID = id_zabiegu INTO rodzaj_uslugi, stan,pesel_klienta;
+
+      IF stan = 'tak' THEN
+        SELECT saldo
+        FROM stan_konta
+        WHERE uzytkownik = pesel_menagera INTO saldo_kliniki;
+
+        SELECT cena
+        FROM uslugi_rehabilitacyjne
+        WHERE ID = rodzaj_uslugi INTO cena_zabiegu;
+
+        SET autocommit = 0;
+        START TRANSACTION;
+
+        SET saldo_kliniki = saldo_kliniki - cena_zabiegu;
+        CALL doladowanie_konta(pesel_menagera, -cena_zabiegu);
+        CALL doladowanie_konta(pesel_klienta, cena_zabiegu);
+        INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+        VALUES (pesel_klienta,pesel_menagera,current_date(), cena_zabiegu, 'zwrot');
+
+        IF(saldo_kliniki >= 0) THEN
+          COMMIT;
+          DELETE FROM zabiegi WHERE ID = id_zabiegu;
+          SELECT "Usunieto";
+        ELSE
+          ROLLBACK;
+          SELECT "Brak srodkow";
+        END IF;
+
+      ELSE
+        DELETE FROM zabiegi WHERE ID = id_zabiegu;
+        SELECT "Usunieto";
+      END IF;
+    ELSE
+      SELECT "Brak zabiegu";
+    END IF;
+
+
+END//
+DELIMITER ;
+
+DROP PROCEDURE IF EXISTS usun_klienta;  #usuwa przyszłe zabiegi jesli były opcoce robi zwrot; likwiduje stan konta klienta; pesel zostaje w bazie dla historycznych zabigow i transakcji
+DELIMITER //
+CREATE PROCEDURE usun_klienta(IN pesel_klienta char(11))
+BEGIN
+    DECLARE pesel_menagera CHAR(11);
+    DECLARE i INT DEFAULT 0;
+    DECLARE liczba_zabiegow INT;
+    DECLARE saldo_kliniki INT;
+    DECLARE rodzaj_uslugi INT;
+    DECLARE cena_zabiegu INT;
+    DECLARE id_zabiegu INT;
+    DECLARE mozliwe INT DEFAULT 1;
+    DECLARE stan ENUM ('tak','nie');
+
+    IF pesel_klienta IN (SELECT uzytkownik FROM stan_konta) THEN
+
+      SELECT PESEL
+      FROM uzytkownicy
+      WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+      DROP TEMPORARY TABLE IF EXISTS T;
+      CREATE TEMPORARY TABLE T AS
+      SELECT ID FROM zabiegi WHERE klient = pesel_klienta AND data_zabiegu >= current_date();
+
+      SELECT count(ID) FROM T INTO liczba_zabiegow;
+
+      SET autocommit = 0;
+      START TRANSACTION;
+
+      w: WHILE i < liczba_zabiegow DO
+        SET id_zabiegu = (SELECT ID FROM T LIMIT i,1);
+        SELECT usluga,oplacono
+        FROM zabiegi
+        WHERE ID = id_zabiegu INTO rodzaj_uslugi, stan;
+
+        IF stan = 'tak' THEN
+          SELECT saldo
+          FROM stan_konta
+          WHERE uzytkownik = pesel_menagera INTO saldo_kliniki;
+
+          SELECT cena
+          FROM uslugi_rehabilitacyjne
+          WHERE ID = rodzaj_uslugi INTO cena_zabiegu;
+
+          SET saldo_kliniki = saldo_kliniki - cena_zabiegu;
+          CALL doladowanie_konta(pesel_menagera, -cena_zabiegu);
+          CALL doladowanie_konta(pesel_klienta, cena_zabiegu);
+          INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+          VALUES (pesel_klienta,pesel_menagera,current_date(), cena_zabiegu, 'zwrot');
+
+          IF(saldo_kliniki >= 0) THEN
+            DELETE FROM zabiegi WHERE ID = id_zabiegu;
+          ELSE
+            SET mozliwe = 0;
+            LEAVE w;
+          END IF;
+        ELSE
+          DELETE FROM zabiegi WHERE ID = id_zabiegu;
+        END IF;
+        SET i = i + 1;
+      END WHILE;
+
+      IF mozliwe = 1 THEN
+        DELETE FROM stan_konta WHERE uzytkownik = pesel_klienta;
+        COMMIT;
+        SELECT "Usunieto";
+      ELSE
+        ROLLBACK;
+        SELECT "Brak srodkow";
+      END IF;
+      DROP TEMPORARY TABLE IF EXISTS T;
+
+    ELSE
+      SELECT "Bledny pesel";
+    END IF;
+END//
+DELIMITER ;
+
+DROP PROCEDURE IF EXISTS usun_pracownika;  #usuwa przyszłe zabiegi jesli były opcoce robi zwrot ; likwiduje pozycje w specjalizach ; pesel zostaje w bazie dla historycznych zabigow i transakcji
+DELIMITER //
+CREATE PROCEDURE usun_pracownika(IN pesel_pracownika char(11))
+BEGIN
+    DECLARE pesel_menagera CHAR(11);
+    DECLARE pesel_klienta CHAR(11);
+    DECLARE i INT DEFAULT 0;
+    DECLARE liczba_zabiegow INT;
+    DECLARE saldo_kliniki INT;
+    DECLARE rodzaj_uslugi INT;
+    DECLARE cena_zabiegu INT;
+    DECLARE id_zabiegu INT;
+    DECLARE mozliwe INT DEFAULT 1;
+    DECLARE stan ENUM ('tak','nie');
+
+    IF pesel_pracownika IN (SELECT pracownik FROM specjalizacje) THEN
+
+      SELECT PESEL
+      FROM uzytkownicy
+      WHERE rola LIKE 'Prezes' INTO pesel_menagera;
+
+      DROP TEMPORARY TABLE IF EXISTS T;
+      CREATE TEMPORARY TABLE T AS
+      SELECT ID,klient,data_zabiegu FROM zabiegi WHERE pracownik = pesel_pracownika AND data_zabiegu >= current_date();
+
+      SELECT count(ID) FROM T INTO liczba_zabiegow;
+
+      SET autocommit = 0;
+      START TRANSACTION;
+      w: WHILE i < liczba_zabiegow DO
+        SET id_zabiegu = (SELECT ID FROM T LIMIT i,1);
+        SELECT usluga,oplacono,klient
+        FROM zabiegi
+        WHERE ID = id_zabiegu INTO rodzaj_uslugi, stan,pesel_klienta;
+
+      IF stan = 'tak' THEN
+          SELECT saldo
+          FROM stan_konta
+          WHERE uzytkownik = pesel_menagera INTO saldo_kliniki;
+
+          SELECT cena
+          FROM uslugi_rehabilitacyjne
+          WHERE ID = rodzaj_uslugi INTO cena_zabiegu;
+
+          SET saldo_kliniki = saldo_kliniki - cena_zabiegu;
+          CALL doladowanie_konta(pesel_menagera, -cena_zabiegu);
+          CALL doladowanie_konta(pesel_klienta, cena_zabiegu);
+          INSERT INTO transakcje (odbiorca, placacy, data, kwota, opis)
+          VALUES (pesel_klienta,pesel_menagera,current_date(), cena_zabiegu, 'zwrot');
+
+          IF(saldo_kliniki >= 0) THEN
+            DELETE FROM zabiegi WHERE ID = id_zabiegu;
+          ELSE
+            SET mozliwe = 0;
+            LEAVE w;
+          END IF;
+        ELSE
+          DELETE FROM zabiegi WHERE ID = id_zabiegu;
+        END IF;
+        SET i = i + 1;
+      END WHILE;
+
+      IF mozliwe = 1 THEN
+        DELETE FROM specjalizacje WHERE pracownik = pesel_pracownika;
+        COMMIT;
+        SELECT "Usunieto";
+        SELECT * FROM T as odwolane_zabiegi;
+      ELSE
+        ROLLBACK;
+        SELECT "Brak srodkow";
+      END IF;
+      DROP TEMPORARY TABLE IF EXISTS T;
+    ELse
+      SELECT "Bledny pesel";
+    END IF;
+
+END//
+DELIMITER ;
+
+
+
+# CALL wyplac_pensje();
+# CALL wyplac_premie(1,1000);
+#call zysk_w_ostatnich_dniach(date_sub(date(now()), INTERVAL 9 DAY), date(now()));
+#CALL pracownik_miesiaca()
+#CALL najczestszy_zabieg();
+#CALL zaplata_za_zabieg('00211898694','9829');
+#CALL dodaj_nowe_stanowisko('xd', 1, 'Lasery A');
+#CALL dodaj_uprawnienia_do_istniejacego_stanowiska(296, 'Lasery B');
+#CALL dodaj_nowego_pracownika('11111111111', 'test','test','Lasery A', 12345);
+#CALL dodaj_nowego_klienta('11111111119', 'test','test', 12345);
+#CALL usun_zabieg(501);
+#CALL usun_klienta('10282398601');
+#CALL usun_pracownika('10323199895');
 
