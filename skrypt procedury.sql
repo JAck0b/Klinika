@@ -5,9 +5,9 @@
 # todo zamienić porównywanie dat na integery i staram się nie używać datatime (zamiast tego time)
 
 # TODO można usunąć ilość i zostawić iterowanie po czasie
-DROP PROCEDURE IF EXISTS wolne_miejsca;
+DROP PROCEDURE IF EXISTS wolne_miejsca_z_pracownikiem;
 DELIMITER //
-CREATE PROCEDURE wolne_miejsca(IN data DATE, IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50))
+CREATE PROCEDURE wolne_miejsca_z_pracownikiem(IN data DATE, IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50), IN wybrany_pracownik CHAR(11))
 BEGIN
   DECLARE iterator_ogolny INT DEFAULT 0;
   DECLARE godzina_rozpoczecia TIME DEFAULT now();
@@ -31,7 +31,7 @@ BEGIN
   DECLARE id_pracownika CHAR(11) DEFAULT '';
   DECLARE id_stanowiska INT DEFAULT 0;
   DECLARE ilosc_zabiegow INT DEFAULT -1;
-  #   DECLARE najdluzsza_usluga_tego_typu INT DEFAULT -1;
+#   DECLARE najdluzsza_usluga_tego_typu INT DEFAULT -1;
   DECLARE ilosc_pasujacych_stanowisk INT DEFAULT -1;
   DECLARE ilosc_pasujacych_pracownikow INT DEFAULT -1;
   DECLARE pomocniczy_char CHAR(32);
@@ -79,11 +79,12 @@ BEGIN
     INTO nowa_usluga_czas_trwania;
 
 
-  #   SELECT max(uslugi_rehabilitacyjne.czas_trwania)
-  #   FROM uslugi_rehabilitacyjne
-  #          JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-  #   WHERE uprawnienia.nazwa <= nowe_uprawnienia_nazwa
-  #     AND uprawnienia.grupa = nowe_uprawnienia_grupa INTO najdluzsza_usluga_tego_typu;
+#   SELECT max(uslugi_rehabilitacyjne.czas_trwania)
+#   FROM uslugi_rehabilitacyjne
+#          JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
+#   WHERE uprawnienia.nazwa <= nowe_uprawnienia_nazwa
+#     AND uprawnienia.grupa = nowe_uprawnienia_grupa INTO najdluzsza_usluga_tego_typu;
+
 
 
   # tutaj będą składowane wszystkie możliwe terminy zapisów
@@ -113,25 +114,26 @@ BEGIN
     AND uprawnienia.grupa = nowe_uprawnienia_grupa;
 
 
-  DROP TABLE IF EXISTS pracownicy_pomoc;
-  CREATE TABLE pracownicy_pomoc
-  (
-    PESEL CHAR(11)
-    #     imie     VARCHAR(30),
-    #     nazwisko VARCHAR(30)
-  );
-  INSERT INTO pracownicy_pomoc (PESEL)
-  SELECT DISTINCT uzytkownicy.PESEL
-  FROM uzytkownicy
-         JOIN specjalizacje ON uzytkownicy.PESEL = specjalizacje.pracownik
-         JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
-  WHERE uprawnienia.grupa = nowe_uprawnienia_grupa
-    AND uprawnienia.nazwa >= nowe_uprawnienia_nazwa
-    AND rola LIKE 'Pracownik';
+
+#   DROP TABLE IF EXISTS pracownicy_pomoc;
+#   CREATE TABLE pracownicy_pomoc
+#   (
+#     PESEL    CHAR(11)
+# #     imie     VARCHAR(30),
+# #     nazwisko VARCHAR(30)
+#   );
+#   INSERT INTO pracownicy_pomoc (PESEL)
+#   SELECT DISTINCT uzytkownicy.PESEL
+#   FROM uzytkownicy
+#          JOIN specjalizacje ON uzytkownicy.PESEL = specjalizacje.pracownik
+#          JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
+#   WHERE uprawnienia.grupa = nowe_uprawnienia_grupa
+#     AND uprawnienia.nazwa >= nowe_uprawnienia_nazwa
+#     AND rola LIKE 'Pracownik';
 
 
-  #   SELECT *
-  #     FROM pracownicy_pomoc;
+#   SELECT *
+#     FROM pracownicy_pomoc;
 
 
   # biorę tylko te zabiegi z potrzebnymi stanowiskami, w danej godzinie na danym stanowisku jest tylko jeden 'rodzaj'
@@ -147,8 +149,8 @@ BEGIN
          JOIN stanowiska_pomoc ON zabiegi.stanowisko = stanowiska_pomoc.ID
   WHERE DATE(zabiegi.data_zabiegu) LIKE data;
 
-  #     SELECT *
-  #     FROM odpowiednie_zabiegi;
+#     SELECT *
+#     FROM odpowiednie_zabiegi;
 
   DROP TABLE IF EXISTS zajete_stanowiska;
   CREATE TABLE zajete_stanowiska
@@ -157,121 +159,135 @@ BEGIN
     czy_zajete CHAR(32)
   );
 
-  # wylicznie siatki dla stanowisk
+  # wylicznie siatki dla stanowisk//////////////////////////////////////////////////////
   # obliczam ile jest odpowiednich stanowisk, następnie przechodzę po wszystkich stanowiskach, które pasują
   # jednocześnie dla każdego ze stanowisk przelatuję po godzinach tak w zależności od tego, czy jest jakiś zabieg,
   # czy nie to uzupełniam tabelkę dostępności 0 lub 1
   SELECT count(stanowiska_pomoc.ID)
-  FROM stanowiska_pomoc INTO ilosc_pasujacych_stanowisk;
+    FROM stanowiska_pomoc
+    INTO ilosc_pasujacych_stanowisk;
 
   SET iterator_ogolny = 0;
 
   WHILE iterator_ogolny < ilosc_pasujacych_stanowisk DO
-  SET iterator_godzin_int = 0;
-  SET iterator_godzin_wlasciwy = godzina_rozpoczecia;
+    SET iterator_godzin_int = 0;
+    SET iterator_godzin_wlasciwy = godzina_rozpoczecia;
 
-  SET pomocniczy_char = '';
+    SET pomocniczy_char = '';
 
-  SELECT stanowiska_pomoc.ID
-  FROM stanowiska_pomoc
-  LIMIT iterator_ogolny, 1
+    SELECT stanowiska_pomoc.ID
+    FROM stanowiska_pomoc
+    LIMIT iterator_ogolny, 1
     INTO id_stanowiska;
 
-  WHILE iterator_godzin_int < ilosc_iteracji_godzin DO
-  SET iterator_godzin_int_wewnetrzy = 0;
-  SET ilosc_iteracji_godzin_wewnetrznych = -1;
+    WHILE iterator_godzin_int < ilosc_iteracji_godzin DO
 
-  SELECT odpowiednie_zabiegi.czas_trwania
-  FROM odpowiednie_zabiegi
-  WHERE odpowiednie_zabiegi.stanowisko = id_stanowiska
-    AND czas_zabiegu LIKE iterator_godzin_wlasciwy INTO ilosc_iteracji_godzin_wewnetrznych;
+      SET iterator_godzin_int_wewnetrzy = 0;
+      SET ilosc_iteracji_godzin_wewnetrznych = -1;
 
-  IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
-    SET ilosc_iteracji_godzin_wewnetrznych = ilosc_iteracji_godzin_wewnetrznych / 15;
-    WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych DO
-    SET pomocniczy_char = concat(pomocniczy_char, '1');
-    SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
-    SET iterator_godzin_int = iterator_godzin_int + 1;
-    SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE);
-    END WHILE;
+      SELECT odpowiednie_zabiegi.czas_trwania
+      FROM odpowiednie_zabiegi
+      WHERE odpowiednie_zabiegi.stanowisko = id_stanowiska
+        AND czas_zabiegu LIKE iterator_godzin_wlasciwy
+        INTO ilosc_iteracji_godzin_wewnetrznych;
 
-  ELSE
-    SET pomocniczy_char = concat(pomocniczy_char, '0');
-    SET iterator_godzin_int = iterator_godzin_int + 1;
-    SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE);
-  END IF ;
+      IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
+        SET ilosc_iteracji_godzin_wewnetrznych = ilosc_iteracji_godzin_wewnetrznych/15;
+        WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych DO
+
+          SET pomocniczy_char = concat(pomocniczy_char, '1');
+          SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
+          SET iterator_godzin_int = iterator_godzin_int + 1;
+          SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE );
+        END WHILE;
+
+      ELSE
+        SET pomocniczy_char = concat(pomocniczy_char, '0');
+        SET iterator_godzin_int = iterator_godzin_int + 1;
+        SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE );
+      END IF ;
+
+    END WHILE ;
+
+    INSERT INTO zajete_stanowiska (stanowisko, czy_zajete)
+    VALUES (id_stanowiska, pomocniczy_char);
+
+    SET iterator_ogolny = iterator_ogolny + 1;
   END WHILE ;
 
-  INSERT INTO zajete_stanowiska (stanowisko, czy_zajete)
-  VALUES (id_stanowiska, pomocniczy_char);
-
-  SET iterator_ogolny = iterator_ogolny + 1;
-  END WHILE;
-
-  #   SELECT *
-  #     FROM zajete_stanowiska;
+  SELECT *
+    FROM zajete_stanowiska;
 
 
-  DROP TABLE IF EXISTS zajeci_pracownicy;
-  CREATE TABLE zajeci_pracownicy
-  (
-    pracownik  CHAR(11),
-    czy_zajete CHAR(32)
-  );
+
+    DROP TABLE IF EXISTS zajeci_pracownicy;
+    CREATE TABLE zajeci_pracownicy
+    (
+      pracownik CHAR(11),
+      czy_zajete CHAR(32)
+    );
 
 
-  # wyliczanie tej siatki dla pracowników
+  # wyliczanie tej siatki dla pracowników //////////////////////////////////////////////////////
   # sposób wyliczania siatki jest analogiczny do wyliczania siatki stanowisk
 
-  SELECT count(pracownicy_pomoc.PESEL)
-  FROM pracownicy_pomoc INTO ilosc_pasujacych_pracownikow;
+#   SELECT count(pracownicy_pomoc.PESEL)
+#     FROM pracownicy_pomoc
+#     INTO ilosc_pasujacych_pracownikow;
 
-  SET iterator_ogolny = 0;
+#   SET ilosc_pasujacych_pracownikow = 1;
+#
+#   SET iterator_ogolny = 0;
+#
+#   WHILE iterator_ogolny < ilosc_pasujacych_pracownikow DO
+    SET iterator_godzin_int = 0;
+    SET iterator_godzin_wlasciwy = godzina_rozpoczecia;
 
-  WHILE iterator_ogolny < ilosc_pasujacych_pracownikow DO
-  SET iterator_godzin_int = 0;
-  SET iterator_godzin_wlasciwy = godzina_rozpoczecia;
+    SET pomocniczy_char = '';
 
-  SET pomocniczy_char = '';
+#     SELECT pracownicy_pomoc.PESEL
+#     FROM pracownicy_pomoc
+#     LIMIT iterator_ogolny, 1
+#       INTO id_pracownika;
+    SET id_pracownika = wybrany_pracownik;
 
-  SELECT pracownicy_pomoc.PESEL
-  FROM pracownicy_pomoc
-  LIMIT iterator_ogolny, 1
-    INTO id_pracownika;
+    WHILE iterator_godzin_int < ilosc_iteracji_godzin DO
 
-  WHILE iterator_godzin_int < ilosc_iteracji_godzin DO
-  SET iterator_godzin_int_wewnetrzy = 0;
-  SET ilosc_iteracji_godzin_wewnetrznych = -1;
+      SET iterator_godzin_int_wewnetrzy = 0;
+      SET ilosc_iteracji_godzin_wewnetrznych = -1;
 
-  SELECT odpowiednie_zabiegi.czas_trwania
-  FROM odpowiednie_zabiegi
-  WHERE odpowiednie_zabiegi.pracownik = id_pracownika
-    AND odpowiednie_zabiegi.czas_zabiegu = iterator_godzin_wlasciwy INTO ilosc_iteracji_godzin_wewnetrznych;
+      SELECT odpowiednie_zabiegi.czas_trwania
+      FROM odpowiednie_zabiegi
+      WHERE odpowiednie_zabiegi.pracownik = id_pracownika
+        AND odpowiednie_zabiegi.czas_zabiegu = iterator_godzin_wlasciwy
+            INTO ilosc_iteracji_godzin_wewnetrznych;
 
-  IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
-    SET ilosc_iteracji_godzin_wewnetrznych = ilosc_iteracji_godzin_wewnetrznych / 15;
-    WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych DO
-    SET pomocniczy_char = concat(pomocniczy_char, '1');
-    SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
-    SET iterator_godzin_int = iterator_godzin_int + 1;
-    SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE);
-    END WHILE;
+      IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
+        SET ilosc_iteracji_godzin_wewnetrznych = ilosc_iteracji_godzin_wewnetrznych/15;
+        WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych DO
 
-  ELSE
-    SET pomocniczy_char = concat(pomocniczy_char, '0');
-    SET iterator_godzin_int = iterator_godzin_int + 1;
-    SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE);
-  END IF ;
-  END WHILE ;
+          SET pomocniczy_char = concat(pomocniczy_char, '1');
+          SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
+          SET iterator_godzin_int = iterator_godzin_int + 1;
+          SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE );
+        END WHILE ;
 
-  INSERT INTO zajeci_pracownicy (pracownik, czy_zajete)
-  VALUES (id_pracownika, pomocniczy_char);
+      ELSE
+        SET pomocniczy_char = concat(pomocniczy_char, '0');
+        SET iterator_godzin_int = iterator_godzin_int + 1;
+        SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE );
+      END IF ;
 
-  SET iterator_ogolny = iterator_ogolny + 1;
-  END WHILE;
+    END WHILE ;
 
-  #   SELECT *
-  #     FROM zajeci_pracownicy;
+    INSERT INTO zajeci_pracownicy (pracownik, czy_zajete)
+    VALUES (id_pracownika, pomocniczy_char);
+#
+#     SET iterator_ogolny = iterator_ogolny + 1;
+#   END WHILE ;
+
+  SELECT *
+    FROM zajeci_pracownicy;
 
 
   # ulepszona tabela z zabiegami, która sprawdza, czy dany pracownik, może wykonać zabieg, czy sala jest dobra
@@ -280,15 +296,16 @@ BEGIN
   DROP TABLE IF EXISTS zabiegi_pomoc;
   CREATE TABLE zabiegi_pomoc
   (
-    pracownik           VARCHAR(45),
-    czas_zabiegu        TIME,
-    czas_trwania        INT,
-    stanowisko          INT,
-    ilosc_klientow      INT,
-    max_liczba_miejsc   INT,
-    imie_pracownika     VARCHAR(30),
+    pracownik         VARCHAR(45),
+    czas_zabiegu      TIME,
+    czas_trwania      INT,
+    stanowisko        INT,
+    ilosc_klientow    INT,
+    max_liczba_miejsc INT,
+    imie_pracownika VARCHAR(30),
     nazwisko_pracownika VARCHAR(30)
   );
+  ALTER TABLE zabiegi_pomoc CONVERT TO CHARACTER SET utf8mb4 collate utf8mb4_unicode_ci;
   INSERT INTO zabiegi_pomoc
   SELECT DISTINCT zabiegi.pracownik,
                   time(zabiegi.data_zabiegu),
@@ -306,10 +323,12 @@ BEGIN
          JOIN stanowiska ON zabiegi.stanowisko = stanowiska.ID
   WHERE uprawnienia.grupa LIKE nowe_uprawnienia_grupa
     AND uprawnienia.nazwa >= nowe_uprawnienia_grupa # wystarczy sprawdzić pracownika, bo ma tylko jedną specjalizację
+    AND uzytkownicy.PESEL = wybrany_pracownik
     AND DATE(zabiegi.data_zabiegu) LIKE data
     AND uslugi_rehabilitacyjne.czas_trwania = nowa_usluga_czas_trwania
   GROUP BY zabiegi.pracownik, time(zabiegi.data_zabiegu), uslugi_rehabilitacyjne.czas_trwania, zabiegi.stanowisko,
            stanowiska.max_ilosc_osob;
+
 
 
   ############################################################################################################
@@ -325,8 +344,10 @@ BEGIN
   SET koniec_petli = FALSE;
   SELECT count(*)
   FROM zabiegi_pomoc
-  WHERE czas_zabiegu LIKE iterator_godzin_wlasciwy INTO ilosc_zabiegow;
+  WHERE czas_zabiegu LIKE iterator_godzin_wlasciwy
+  INTO ilosc_zabiegow;
   petla_zabiegi: WHILE iterator_zabiegow < ilosc_zabiegow AND koniec_petli = FALSE DO
+
   SELECT zabiegi_pomoc.imie_pracownika,
          zabiegi_pomoc.nazwisko_pracownika,
          zabiegi_pomoc.max_liczba_miejsc,
@@ -341,7 +362,7 @@ BEGIN
   #     pracownik musi mieć minimalne uprawnienia oraz czas musi być ten sam
   IF maksymalna_ilosc_stanowiska - 1 >= obecna_ilosc_stanowiska AND
      koniec_petli = FALSE THEN
-    #     SELECT iterator_godzin_wlasciwy, 'if';
+#     SELECT iterator_godzin_wlasciwy, 'if';
     INSERT INTO mozliwe_terminy (imie, nazwisko, stanowisko, godzina)
     VALUES (imie_pracownika, nazwisko_pracownika, znalezione_stanowisko, iterator_godzin_wlasciwy);
 
@@ -352,87 +373,89 @@ BEGIN
   SET iterator_zabiegow = iterator_zabiegow + 1;
   END WHILE ;
   # jeżeli nie się do czego podłączyć
-  IF koniec_petli = FALSE THEN
-    SET iterator_ogolny = 0;
-    SET znaleziono_stanowisko = FALSE;
-    SET pomocniczy_char = '';
-
-    # szukanie stanowiska
-    WHILE iterator_ogolny < ilosc_pasujacych_stanowisk AND znaleziono_stanowisko = FALSE DO
-    SELECT zajete_stanowiska.stanowisko, zajete_stanowiska.czy_zajete
-    FROM zajete_stanowiska
-    LIMIT iterator_ogolny, 1
-      INTO id_stanowiska, pomocniczy_char;
-
-    SET iterator_godzin_int_wewnetrzy = iterator_godzin_int + 1;
-    SET ilosc_iteracji_godzin_wewnetrznych = nowa_usluga_czas_trwania / 15 + iterator_godzin_int + 1;
-    SET znaleziono_stanowisko = TRUE;
-
-    WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych AND iterator_godzin_int_wewnetrzy <= 32
-      AND znaleziono_stanowisko = TRUE DO
-    IF substring(pomocniczy_char, iterator_godzin_int_wewnetrzy, 1) = '1' THEN
+    IF koniec_petli = FALSE THEN
+       SET iterator_ogolny = 0;
       SET znaleziono_stanowisko = FALSE;
-    END IF ;
-
-
-    SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
-    IF iterator_godzin_int_wewnetrzy = 33 THEN
-      SET znaleziono_stanowisko = FALSE;
-    END IF ;
-    END WHILE ;
-
-    SET iterator_ogolny = iterator_ogolny + 1;
-    END WHILE;
-
-    # szuka tylko wtedy, gdy jest sens, bo jest stanowisko
-    IF znaleziono_stanowisko = TRUE THEN
-      #                     SELECT id_stanowiska, iterator_godzin_wlasciwy;
-
-
-      SET iterator_ogolny = 0;
-      SET znaleziono_pracownika = FALSE;
       SET pomocniczy_char = '';
-      # szukanie pracownika
-      WHILE iterator_ogolny < ilosc_pasujacych_pracownikow AND znaleziono_pracownika = FALSE DO
-      SELECT zajeci_pracownicy.pracownik, zajeci_pracownicy.czy_zajete
-      FROM zajeci_pracownicy
-      LIMIT iterator_ogolny, 1
-        INTO id_pracownika, pomocniczy_char;
 
-      SET iterator_godzin_int_wewnetrzy = iterator_godzin_int + 1;
-      SET ilosc_iteracji_godzin_wewnetrznych = nowa_usluga_czas_trwania / 15 + iterator_godzin_int + 1;
-      SET znaleziono_pracownika = TRUE;
+      # szukanie stanowiska
+      WHILE iterator_ogolny < ilosc_pasujacych_stanowisk AND znaleziono_stanowisko = FALSE DO
 
-      WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych AND iterator_godzin_int_wewnetrzy <= 32
-        AND znaleziono_pracownika = TRUE DO
-      IF substring(pomocniczy_char, iterator_godzin_int_wewnetrzy, 1) = '1' THEN
-        SET znaleziono_pracownika = FALSE;
-      END IF ;
+        SELECT zajete_stanowiska.stanowisko, zajete_stanowiska.czy_zajete
+        FROM zajete_stanowiska
+        LIMIT iterator_ogolny, 1
+        INTO id_stanowiska, pomocniczy_char;
+
+        SET iterator_godzin_int_wewnetrzy = iterator_godzin_int + 1;
+        SET ilosc_iteracji_godzin_wewnetrznych = nowa_usluga_czas_trwania/15 + iterator_godzin_int + 1;
+        set znaleziono_stanowisko = TRUE;
+
+        WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych AND iterator_godzin_int_wewnetrzy <= 32
+          AND znaleziono_stanowisko = TRUE DO
+
+          IF substring(pomocniczy_char, iterator_godzin_int_wewnetrzy, 1) = '1' THEN
+            SET znaleziono_stanowisko = FALSE;
+          END IF ;
 
 
-      SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
-      IF iterator_godzin_int_wewnetrzy = 33 THEN
-        SET znaleziono_pracownika = FALSE;
-      END IF ;
+          SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
+          IF iterator_godzin_int_wewnetrzy = 33 THEN
+            SET znaleziono_stanowisko = FALSE;
+          END IF ;
+        END WHILE ;
+
+        SET iterator_ogolny = iterator_ogolny + 1;
       END WHILE ;
 
-      SET iterator_ogolny = iterator_ogolny + 1;
-      END WHILE;
-      # jeżeli jest pracownik i stanowisko to wrzuca kombinacje do tabeli z możliwymi zabiegami
-      IF znaleziono_pracownika = TRUE THEN
+      # szuka tylko wtedy, gdy jest sens, bo jest stanowisko
+      IF znaleziono_stanowisko = TRUE THEN
+#                     SELECT id_stanowiska, iterator_godzin_wlasciwy;
 
-        SELECT uzytkownicy.imie, uzytkownicy.nazwisko
-        FROM uzytkownicy
-        WHERE uzytkownicy.PESEL = id_pracownika INTO imie_pracownika, nazwisko_pracownika;
 
-        INSERT INTO mozliwe_terminy (imie, nazwisko, stanowisko, godzina)
-        VALUES (imie_pracownika, nazwisko_pracownika, id_stanowiska, iterator_godzin_wlasciwy);
+        SET iterator_ogolny = 0;
+        SET znaleziono_pracownika = FALSE;
+        SET pomocniczy_char = '';
+        # szukanie pracownika
+        WHILE iterator_ogolny < ilosc_pasujacych_pracownikow AND znaleziono_pracownika = FALSE DO
+          SELECT zajeci_pracownicy.pracownik, zajeci_pracownicy.czy_zajete
+          FROM zajeci_pracownicy
+          LIMIT iterator_ogolny, 1
+            INTO id_pracownika, pomocniczy_char;
+
+          SET iterator_godzin_int_wewnetrzy = iterator_godzin_int + 1;
+          SET ilosc_iteracji_godzin_wewnetrznych = nowa_usluga_czas_trwania / 15 + iterator_godzin_int + 1;
+          SET znaleziono_pracownika = TRUE;
+
+          WHILE iterator_godzin_int_wewnetrzy < ilosc_iteracji_godzin_wewnetrznych AND iterator_godzin_int_wewnetrzy <= 32
+            AND znaleziono_pracownika = TRUE DO
+            IF substring(pomocniczy_char, iterator_godzin_int_wewnetrzy, 1) = '1' THEN
+              SET znaleziono_pracownika = FALSE;
+            END IF ;
+
+
+            SET iterator_godzin_int_wewnetrzy = iterator_godzin_int_wewnetrzy + 1;
+            IF iterator_godzin_int_wewnetrzy = 33 THEN
+              SET znaleziono_pracownika = FALSE;
+            END IF ;
+          END WHILE ;
+
+          SET iterator_ogolny = iterator_ogolny + 1;
+        END WHILE;
+        # jeżeli jest pracownik i stanowisko to wrzuca kombinacje do tabeli z możliwymi zabiegami
+        IF znaleziono_pracownika = TRUE THEN
+
+          SELECT uzytkownicy.imie, uzytkownicy.nazwisko
+          FROM uzytkownicy
+          WHERE uzytkownicy.PESEL = id_pracownika INTO imie_pracownika, nazwisko_pracownika;
+
+          INSERT INTO mozliwe_terminy (imie, nazwisko, stanowisko, godzina)
+          VALUES (imie_pracownika, nazwisko_pracownika, id_stanowiska, iterator_godzin_wlasciwy);
+
+        END IF ;
 
       END IF;
-
-    END IF;
-  END IF ;
-  SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE);
+    END IF ;
+  SET iterator_godzin_wlasciwy = date_add(iterator_godzin_wlasciwy, INTERVAL 15 MINUTE );
   SET iterator_godzin_int = iterator_godzin_int + 1;
   END WHILE;
 
@@ -450,8 +473,7 @@ BEGIN
 END //
 DELIMITER ;
 
-CALL wolne_miejsca('2019-01-19', 'Szyja', 'Gimnastyka indywidualna');
-
+CALL wolne_miejsca_z_pracownikiem('2019-01-19', 'Argonowy', 'Laseroterapia', '10323199697');
 ////////////////////////////////////////////////
 
 DROP PROCEDURE IF EXISTS doladowanie_konta;
