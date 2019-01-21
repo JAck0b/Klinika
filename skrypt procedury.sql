@@ -1153,6 +1153,25 @@ DELIMITER ;
 # SELECT @X;
 
 
+DELIMITER //
+CREATE PROCEDURE dodaj_zabieg(IN wprowadzony_klient CHAR(11), IN wprowadzony_pracownik CHAR(11), IN wprowadzona_data_zabiegu DATE, IN wprowadzona_godzina_zabiegu TIME,
+                              IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50),
+                              IN wprowadzone_stanowisko INT)
+BEGIN
+  DECLARE id_uslugi INT DEFAULT -1;
+  SELECT uslugi_rehabilitacyjne.ID
+  FROM KlinikaMilion.uslugi_rehabilitacyjne
+  WHERE uslugi_rehabilitacyjne.nazwa LIKE nazwa_uslugi
+    AND uslugi_rehabilitacyjne.rodzaj LIKE rodzaj_uslugi INTO id_uslugi;
+
+  IF id_uslugi = -1 THEN
+    SIGNAL SQLSTATE '12345' SET MESSAGE_TEXT = 'Nieprawidłowa nazwa lub godizna zabiegu.';
+  END IF ;
+  INSERT INTO KlinikaMilion.zabiegi (klient, pracownik, data_zabiegu, usluga, stanowisko, oplacono)
+  VALUES (wprowadzony_klient, wprowadzony_pracownik, concat(wprowadzona_data_zabiegu, ' ', wprowadzona_godzina_zabiegu), id_uslugi, wprowadzone_stanowisko, 'nie');
+END //
+DELIMITER ;
+
 # CALL wyplac_pensje();
 # CALL wyplac_premie(1, 1000);
 # CALL zysk_w_ostatnich_dniach(date_sub(date(now()), INTERVAL 9 DAY), date(now()));
