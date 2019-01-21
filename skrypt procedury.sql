@@ -5,9 +5,9 @@
 # todo zamienić porównywanie dat na integery i staram się nie używać datatime (zamiast tego time)
 
 # TODO można usunąć ilość i zostawić iterowanie po czasie
-DROP PROCEDURE IF EXISTS wolne_miejsca_z_pracownikiem;
+DROP PROCEDURE IF EXISTS wolne_miejsca;
 DELIMITER //
-CREATE PROCEDURE wolne_miejsca_z_pracownikiem(IN data DATE, IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50), IN wybrany_pracownik CHAR(11))
+CREATE PROCEDURE wolne_miejsca(IN data DATE, IN nazwa_uslugi VARCHAR(100), IN rodzaj_uslugi VARCHAR(50))
 BEGIN
   DECLARE iterator_ogolny INT DEFAULT 0;
   DECLARE godzina_rozpoczecia TIME DEFAULT now();
@@ -31,7 +31,6 @@ BEGIN
   DECLARE id_pracownika CHAR(11) DEFAULT '';
   DECLARE id_stanowiska INT DEFAULT 0;
   DECLARE ilosc_zabiegow INT DEFAULT -1;
-#   DECLARE najdluzsza_usluga_tego_typu INT DEFAULT -1;
   DECLARE ilosc_pasujacych_stanowisk INT DEFAULT -1;
   DECLARE ilosc_pasujacych_pracownikow INT DEFAULT -1;
   DECLARE pomocniczy_char CHAR(32);
@@ -78,15 +77,6 @@ BEGIN
   LIMIT 1
     INTO nowa_usluga_czas_trwania;
 
-
-#   SELECT max(uslugi_rehabilitacyjne.czas_trwania)
-#   FROM uslugi_rehabilitacyjne
-#          JOIN uprawnienia ON uslugi_rehabilitacyjne.uprawnienia = uprawnienia.nazwa
-#   WHERE uprawnienia.nazwa <= nowe_uprawnienia_nazwa
-#     AND uprawnienia.grupa = nowe_uprawnienia_grupa INTO najdluzsza_usluga_tego_typu;
-
-
-
   # tutaj będą składowane wszystkie możliwe terminy zapisów
   DROP TABLE IF EXISTS mozliwe_terminy;
   CREATE TABLE mozliwe_terminy
@@ -114,26 +104,19 @@ BEGIN
     AND uprawnienia.grupa = nowe_uprawnienia_grupa;
 
 
-
-#   DROP TABLE IF EXISTS pracownicy_pomoc;
-#   CREATE TABLE pracownicy_pomoc
-#   (
-#     PESEL    CHAR(11)
-# #     imie     VARCHAR(30),
-# #     nazwisko VARCHAR(30)
-#   );
-#   INSERT INTO pracownicy_pomoc (PESEL)
-#   SELECT DISTINCT uzytkownicy.PESEL
-#   FROM uzytkownicy
-#          JOIN specjalizacje ON uzytkownicy.PESEL = specjalizacje.pracownik
-#          JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
-#   WHERE uprawnienia.grupa = nowe_uprawnienia_grupa
-#     AND uprawnienia.nazwa >= nowe_uprawnienia_nazwa
-#     AND rola LIKE 'Pracownik';
-
-
-#   SELECT *
-#     FROM pracownicy_pomoc;
+  DROP TABLE IF EXISTS pracownicy_pomoc;
+  CREATE TABLE pracownicy_pomoc
+  (
+    PESEL    CHAR(11)
+  );
+  INSERT INTO pracownicy_pomoc (PESEL)
+  SELECT DISTINCT uzytkownicy.PESEL
+  FROM uzytkownicy
+         JOIN specjalizacje ON uzytkownicy.PESEL = specjalizacje.pracownik
+         JOIN uprawnienia ON specjalizacje.uprawnienia = uprawnienia.nazwa
+  WHERE uprawnienia.grupa = nowe_uprawnienia_grupa
+    AND uprawnienia.nazwa >= nowe_uprawnienia_nazwa
+    AND rola LIKE 'Pracownik';
 
 
   # biorę tylko te zabiegi z potrzebnymi stanowiskami, w danej godzinie na danym stanowisku jest tylko jeden 'rodzaj'
@@ -149,8 +132,6 @@ BEGIN
          JOIN stanowiska_pomoc ON zabiegi.stanowisko = stanowiska_pomoc.ID
   WHERE DATE(zabiegi.data_zabiegu) LIKE data;
 
-#     SELECT *
-#     FROM odpowiednie_zabiegi;
 
   DROP TABLE IF EXISTS zajete_stanowiska;
   CREATE TABLE zajete_stanowiska
@@ -168,6 +149,7 @@ BEGIN
     INTO ilosc_pasujacych_stanowisk;
 
   SET iterator_ogolny = 0;
+
 
   WHILE iterator_ogolny < ilosc_pasujacych_stanowisk DO
     SET iterator_godzin_int = 0;
@@ -189,6 +171,7 @@ BEGIN
       FROM odpowiednie_zabiegi
       WHERE odpowiednie_zabiegi.stanowisko = id_stanowiska
         AND czas_zabiegu LIKE iterator_godzin_wlasciwy
+#             LIMIT 1
         INTO ilosc_iteracji_godzin_wewnetrznych;
 
       IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
@@ -215,10 +198,6 @@ BEGIN
     SET iterator_ogolny = iterator_ogolny + 1;
   END WHILE ;
 
-  SELECT *
-    FROM zajete_stanowiska;
-
-
 
     DROP TABLE IF EXISTS zajeci_pracownicy;
     CREATE TABLE zajeci_pracownicy
@@ -231,25 +210,22 @@ BEGIN
   # wyliczanie tej siatki dla pracowników //////////////////////////////////////////////////////
   # sposób wyliczania siatki jest analogiczny do wyliczania siatki stanowisk
 
-#   SELECT count(pracownicy_pomoc.PESEL)
-#     FROM pracownicy_pomoc
-#     INTO ilosc_pasujacych_pracownikow;
+  SELECT count(pracownicy_pomoc.PESEL)
+    FROM pracownicy_pomoc
+    INTO ilosc_pasujacych_pracownikow;
 
-#   SET ilosc_pasujacych_pracownikow = 1;
-#
-#   SET iterator_ogolny = 0;
-#
-#   WHILE iterator_ogolny < ilosc_pasujacych_pracownikow DO
+  SET iterator_ogolny = 0;
+
+  WHILE iterator_ogolny < ilosc_pasujacych_pracownikow DO
     SET iterator_godzin_int = 0;
     SET iterator_godzin_wlasciwy = godzina_rozpoczecia;
 
     SET pomocniczy_char = '';
 
-#     SELECT pracownicy_pomoc.PESEL
-#     FROM pracownicy_pomoc
-#     LIMIT iterator_ogolny, 1
-#       INTO id_pracownika;
-    SET id_pracownika = wybrany_pracownik;
+    SELECT pracownicy_pomoc.PESEL
+    FROM pracownicy_pomoc
+    LIMIT iterator_ogolny, 1
+      INTO id_pracownika;
 
     WHILE iterator_godzin_int < ilosc_iteracji_godzin DO
 
@@ -260,6 +236,7 @@ BEGIN
       FROM odpowiednie_zabiegi
       WHERE odpowiednie_zabiegi.pracownik = id_pracownika
         AND odpowiednie_zabiegi.czas_zabiegu = iterator_godzin_wlasciwy
+#             LIMIT 1
             INTO ilosc_iteracji_godzin_wewnetrznych;
 
       IF ilosc_iteracji_godzin_wewnetrznych <> -1 THEN
@@ -282,13 +259,9 @@ BEGIN
 
     INSERT INTO zajeci_pracownicy (pracownik, czy_zajete)
     VALUES (id_pracownika, pomocniczy_char);
-#
-#     SET iterator_ogolny = iterator_ogolny + 1;
-#   END WHILE ;
 
-  SELECT *
-    FROM zajeci_pracownicy;
-
+    SET iterator_ogolny = iterator_ogolny + 1;
+  END WHILE ;
 
   # ulepszona tabela z zabiegami, która sprawdza, czy dany pracownik, może wykonać zabieg, czy sala jest dobra
   # oraz czy jest odpowiednio długo sala wypożyczona
@@ -305,7 +278,6 @@ BEGIN
     imie_pracownika VARCHAR(30),
     nazwisko_pracownika VARCHAR(30)
   );
-  ALTER TABLE zabiegi_pomoc CONVERT TO CHARACTER SET utf8mb4 collate utf8mb4_unicode_ci;
   INSERT INTO zabiegi_pomoc
   SELECT DISTINCT zabiegi.pracownik,
                   time(zabiegi.data_zabiegu),
@@ -323,7 +295,6 @@ BEGIN
          JOIN stanowiska ON zabiegi.stanowisko = stanowiska.ID
   WHERE uprawnienia.grupa LIKE nowe_uprawnienia_grupa
     AND uprawnienia.nazwa >= nowe_uprawnienia_grupa # wystarczy sprawdzić pracownika, bo ma tylko jedną specjalizację
-    AND uzytkownicy.PESEL = wybrany_pracownik
     AND DATE(zabiegi.data_zabiegu) LIKE data
     AND uslugi_rehabilitacyjne.czas_trwania = nowa_usluga_czas_trwania
   GROUP BY zabiegi.pracownik, time(zabiegi.data_zabiegu), uslugi_rehabilitacyjne.czas_trwania, zabiegi.stanowisko,
@@ -362,7 +333,6 @@ BEGIN
   #     pracownik musi mieć minimalne uprawnienia oraz czas musi być ten sam
   IF maksymalna_ilosc_stanowiska - 1 >= obecna_ilosc_stanowiska AND
      koniec_petli = FALSE THEN
-#     SELECT iterator_godzin_wlasciwy, 'if';
     INSERT INTO mozliwe_terminy (imie, nazwisko, stanowisko, godzina)
     VALUES (imie_pracownika, nazwisko_pracownika, znalezione_stanowisko, iterator_godzin_wlasciwy);
 
@@ -409,7 +379,6 @@ BEGIN
 
       # szuka tylko wtedy, gdy jest sens, bo jest stanowisko
       IF znaleziono_stanowisko = TRUE THEN
-#                     SELECT id_stanowiska, iterator_godzin_wlasciwy;
 
 
         SET iterator_ogolny = 0;
@@ -473,7 +442,7 @@ BEGIN
 END //
 DELIMITER ;
 
-CALL wolne_miejsca_z_pracownikiem('2019-01-19', 'Argonowy', 'Laseroterapia', '10323199697');
+CALL wolne_miejsca('2019-01-17', 'Argonowy', 'Laseroterapia');
 ////////////////////////////////////////////////
 
 DROP PROCEDURE IF EXISTS doladowanie_konta;
